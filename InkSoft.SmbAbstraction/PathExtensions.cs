@@ -105,7 +105,7 @@ public static class PathExtensions
     public static string ShareName(this string path)
     {
         var uri = new Uri(path);
-        string? shareName = uri.Segments[1].RemoveAnySeperators();
+        string? shareName = uri.Segments[1].RemoveAnySeparators();
 
         return shareName;
     }
@@ -116,9 +116,9 @@ public static class PathExtensions
 
         string sharePath = "";
         if (uri.Scheme.Equals("smb"))
-            sharePath = $"{uri.Scheme}://{uri.Host}/{uri.Segments[1].RemoveAnySeperators()}";
+            sharePath = $"{uri.Scheme}://{uri.Host}/{uri.Segments[1].RemoveAnySeparators()}";
         else if (uri.IsUnc)
-            sharePath = $@"\\{uri.Host}\{uri.Segments[1].RemoveAnySeperators()}";
+            sharePath = $@"\\{uri.Host}\{uri.Segments[1].RemoveAnySeparators()}";
 
         return sharePath;
     }
@@ -135,7 +135,7 @@ public static class PathExtensions
         var pathUri = new Uri(path);
         var parentUri = pathUri.AbsoluteUri.EndsWith('/') ? new(pathUri, "..") : new Uri(pathUri, ".");
         string? pathString = parentUri.IsUnc ? parentUri.LocalPath : Uri.UnescapeDataString(parentUri.AbsoluteUri);
-        return pathString.RemoveTrailingSeperators();
+        return pathString.RemoveTrailingSeparators();
     }
 
     public static string GetLastPathSegment(this string path)
@@ -144,7 +144,7 @@ public static class PathExtensions
         return Uri.UnescapeDataString(uri.Segments.Last());
     }
 
-    public static string RemoveLeadingAndTrailingSeparators(this string input) => input.RemoveLeadingSeparators().RemoveTrailingSeperators();
+    public static string RemoveLeadingAndTrailingSeparators(this string input) => input.RemoveLeadingSeparators().RemoveTrailingSeparators();
 
     public static string RemoveLeadingSeparators(this string input)
     {
@@ -159,7 +159,7 @@ public static class PathExtensions
         return input;
     }
 
-    public static string RemoveTrailingSeperators(this string input)
+    public static string RemoveTrailingSeparators(this string input)
     {
         foreach (string? pathSeperator in s_pathSeparators)
         {
@@ -172,7 +172,7 @@ public static class PathExtensions
         return input;
     }
 
-    private static string RemoveAnySeperators(this string input)
+    private static string RemoveAnySeparators(this string input)
     {
         foreach (string? pathSeparator in s_pathSeparators)
         {

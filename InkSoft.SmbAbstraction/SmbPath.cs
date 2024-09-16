@@ -88,17 +88,17 @@ public class SmbPath : PathWrapper, IPath
             return directoryName;
         }
 
-        string[]? segments = relativePath.Split(@"\");
+        string[]? segments = relativePath.Split('\\');
         if (HasExtension(segments.Last()))
         {
             if (path.IsSmbUri())
             {
-                directoryName = Combine(path.SharePath(), string.Join('/', segments.Take(segments.Length - 1)));
+                directoryName = Combine(path.SharePath(), string.Join("/", segments.Take(segments.Length - 1)));
             }
 
             if (path.IsUncPath())
             {
-                directoryName = Combine(path.SharePath(), string.Join('\\', segments.Take(segments.Length - 1)));
+                directoryName = Combine(path.SharePath(), string.Join("\\", segments.Take(segments.Length - 1)));
             }
         }
         else
@@ -130,7 +130,7 @@ public class SmbPath : PathWrapper, IPath
             return fileName;
         }
 
-        fileName = relativePath.Split(@"\").Last();
+        fileName = relativePath.Split('\\').Last();
 
         return fileName;
     }

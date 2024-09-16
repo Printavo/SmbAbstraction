@@ -1,26 +1,26 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net8.0</TargetFrameworks>
-    <PackOnBuild>true</PackOnBuild>
+    <TargetFrameworks>net8.0;netstandard2.0</TargetFrameworks>
     <NeutralLanguage>en-US</NeutralLanguage>
-    <Description>This library implements the System.IO.Abstractions interfaces for interacting with the filesystem, and adds support for interacting with UNC or SMB paths.</Description>
+    <Description>This project is a fork of https://github.com/jordanlytle/SmbAbstraction with a few key differences: 1) It uses the original SMBLibrary as opposed to SMBLibraryLite, 2) It conforms to newer versions of https://github.com/TestableIO/System.IO.Abstractions interfaces, and 3) it also targets .Net Standard 2.0. This library implements the System.IO.Abstractions interfaces for interacting with the filesystem and adds support for interacting with UNC or SMB paths from non-Windows and Windos clients outside an Active Directory domain.</Description>
     <PackageId>InkSoft.SmbAbstraction</PackageId>
-    <RepositoryUrl>https://github.com/Printavo/SmbAbstraction</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+    <Version>0.1.0</Version>
     <PackageVersion>0.1.0</PackageVersion>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <IncludeSymbols>true</IncludeSymbols>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <PackageIcon>PackageIcon.png</PackageIcon>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <Version>0.1.0</Version>
+    <Title>SMBLibrary to IFileSystem compatibility shim</Title>
+    <PackageReleaseNotes>Initial fork from original SmbAbstraction project.</PackageReleaseNotes>
+    <SignAssembly>True</SignAssembly>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.1" />
     <PackageReference Include="SMBLibrary" Version="1.5.3.5" />
     <PackageReference Include="System.IO.Abstractions" Version="21.0.29" />
-    <PackageReference Include="NuGet.Build.Packaging" Version="0.2.2">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
+    <None Include="PackageIcon.png" Pack="true" PackagePath="" />
   </ItemGroup>
 </Project>

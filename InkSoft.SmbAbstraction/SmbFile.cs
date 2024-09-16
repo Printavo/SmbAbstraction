@@ -18,7 +18,7 @@ namespace InkSoft.SmbAbstraction;
 #if FEATURE_SERIALIZABLE
 [Serializable]
 #endif
-public class SmbFile(
+public partial class SmbFile(
     ISmbClientFactory smbClientFactory,
     ISmbCredentialProvider credentialProvider,
     IFileSystem fileSystem,
@@ -65,10 +65,6 @@ public class SmbFile(
         sw.Write(contents);
     }
 
-    public override Task AppendAllLinesAsync(string path, IEnumerable<string> contents, CancellationToken cancellationToken = default) => path.IsSharePath() ? new(() => AppendAllLines(path, contents), cancellationToken) : base.AppendAllLinesAsync(path, contents, cancellationToken);
-
-    public override Task AppendAllLinesAsync(string path, IEnumerable<string> contents, Encoding encoding, CancellationToken cancellationToken = default) => path.IsSharePath() ? new(() => AppendAllLines(path, contents, encoding), cancellationToken) : base.AppendAllLinesAsync(path, contents, encoding, cancellationToken);
-
     public override void AppendAllText(string path, string contents)
     {
         if (!path.IsSharePath())
@@ -96,10 +92,6 @@ public class SmbFile(
         using var sw = new StreamWriter(s, encoding);
         sw.Write(contents);
     }
-
-    public override Task AppendAllTextAsync(string path, string contents, CancellationToken cancellationToken = default) => path.IsSharePath() ? new(() => AppendAllText(path, contents), cancellationToken) : base.AppendAllTextAsync(path, contents, cancellationToken);
-
-    public override Task AppendAllTextAsync(string path, string contents, Encoding encoding, CancellationToken cancellationToken = default) => path.IsSharePath() ? new(() => AppendAllText(path, contents, encoding), cancellationToken) : base.AppendAllTextAsync(path, contents, encoding, cancellationToken);
 
     public override StreamWriter AppendText(string path)
     {
@@ -554,8 +546,6 @@ public class SmbFile(
         return ms.ToArray();
     }
 
-    public override Task<byte[]> ReadAllBytesAsync(string path, CancellationToken cancellationToken = default) => path.IsSharePath() ? new(() => ReadAllBytes(path), cancellationToken) : base.ReadAllBytesAsync(path, cancellationToken);
-
     public override string[] ReadAllLines(string path)
     {
         if (!path.IsSharePath())
@@ -574,26 +564,6 @@ public class SmbFile(
         }
 
         return ReadLines(path, encoding).ToArray();
-    }
-
-    public override Task<string[]> ReadAllLinesAsync(string path, CancellationToken cancellationToken = default)
-    {
-        if (!path.IsSharePath())
-        {
-            return base.ReadAllLinesAsync(path, cancellationToken);
-        }
-
-        return new(() => ReadAllLines(path), cancellationToken);
-    }
-
-    public override Task<string[]> ReadAllLinesAsync(string path, Encoding encoding, CancellationToken cancellationToken = default)
-    {
-        if (!path.IsSharePath())
-        {
-            return base.ReadAllLinesAsync(path, encoding, cancellationToken);
-        }
-
-        return new(() => ReadAllLines(path, encoding), cancellationToken);
     }
 
     public override string ReadAllText(string path)
@@ -616,26 +586,6 @@ public class SmbFile(
 
         using var sr = new StreamReader(OpenRead(path), encoding);
         return sr.ReadToEnd();
-    }
-
-    public override Task<string> ReadAllTextAsync(string path, CancellationToken cancellationToken = default)
-    {
-        if (!path.IsSharePath())
-        {
-            return base.ReadAllTextAsync(path, cancellationToken);
-        }
-
-        return new(() => ReadAllText(path), cancellationToken);
-    }
-
-    public override Task<string> ReadAllTextAsync(string path, Encoding encoding, CancellationToken cancellationToken = default)
-    {
-        if (!path.IsSharePath())
-        {
-            return base.ReadAllTextAsync(path, encoding, cancellationToken);
-        }
-
-        return new(() => ReadAllText(path, encoding), cancellationToken);
     }
 
     public override IEnumerable<string> ReadLines(string path)
@@ -778,16 +728,6 @@ public class SmbFile(
         sr.Write(bytes);
     }
 
-    public override Task WriteAllBytesAsync(string path, byte[] bytes, CancellationToken cancellationToken = default(CancellationToken))
-    {
-        if (!path.IsSharePath())
-        {
-            return base.WriteAllBytesAsync(path, bytes, cancellationToken);
-        }
-
-        return new(() => WriteAllBytes(path, bytes), cancellationToken);
-    }
-
     public override void WriteAllLines(string path, IEnumerable<string> contents)
     {
         if (!path.IsSharePath())
@@ -834,26 +774,6 @@ public class SmbFile(
         sr.Write(contents);
     }
 
-    public override Task WriteAllLinesAsync(string path, IEnumerable<string> contents, CancellationToken cancellationToken = default(CancellationToken))
-    {
-        if (!path.IsSharePath())
-        {
-            return base.WriteAllLinesAsync(path, contents, cancellationToken);
-        }
-
-        return new(() => WriteAllLines(path, contents), cancellationToken);
-    }
-
-    public override Task WriteAllLinesAsync(string path, IEnumerable<string> contents, Encoding encoding, CancellationToken cancellationToken = default(CancellationToken))
-    {
-        if (!path.IsSharePath())
-        {
-            return base.WriteAllLinesAsync(path, contents, encoding, cancellationToken);
-        }
-
-        return new(() => WriteAllLines(path, contents, encoding), cancellationToken);
-    }
-
     public override void WriteAllText(string path, string contents)
     {
         if (!path.IsSharePath())
@@ -877,16 +797,4 @@ public class SmbFile(
         using var sw = new StreamWriter(OpenWrite(path), encoding);
         sw.Write(contents);
     }
-
-    public override Task WriteAllTextAsync(string path, string contents, CancellationToken cancellationToken = default(CancellationToken))
-    {
-        if (!path.IsSharePath())
-        {
-            return base.WriteAllTextAsync(path, contents, cancellationToken);
-        }
-
-        return new(() => WriteAllText(path, contents), cancellationToken);
-    }
-
-    public override Task WriteAllTextAsync(string path, string contents, Encoding encoding, CancellationToken cancellationToken = default(CancellationToken)) => !path.IsSharePath() ? base.WriteAllTextAsync(path, contents, encoding, cancellationToken) : new(() => WriteAllText(path, contents, encoding), cancellationToken);
 }

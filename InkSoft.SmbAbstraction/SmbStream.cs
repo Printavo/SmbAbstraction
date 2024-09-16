@@ -148,7 +148,12 @@ public class SmbStream : Stream
         base.Dispose(disposing);
     }
 
-    public override void CopyTo(Stream destination, int bufferSize = 0)
+    /// <inheritdoc cref="Stream.CopyTo(Stream, int)" />
+#if NETSTANDARD2_0 || NET462
+	public new virtual void CopyTo(Stream destination, int bufferSize)
+#else
+    public override void CopyTo(Stream destination, int bufferSize)
+#endif
     {
         if(bufferSize == 0 || bufferSize > MaxBufferSize)
         {

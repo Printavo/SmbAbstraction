@@ -1,13 +1,15 @@
 <Project>
   <PropertyGroup>
-    <Product>System.IO.Abstractions</Product>
+    <Product>InkSoft.SmbAbstraction</Product>
     <Copyright>Copyright © Inktavo 2024</Copyright>
     <Authors>Inktavo</Authors>
+    <Company>Inktavo</Company>
     <SignAssembly Condition="'$(Configuration)' == 'Release'">True</SignAssembly>
     <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)StrongName.snk</AssemblyOriginatorKeyFile>
     <LangVersion>12</LangVersion>
-    <PackageTags>testing</PackageTags>
+    <PackageTags>IFileSystem;SMB;UNC;System.IO.Abstractions;SMBLibrary;SMBAbstraction;Linux</PackageTags>
     <PackageProjectUrl>https://github.com/Printavo/SmbAbstraction</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Printavo/SmbAbstraction</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <DefineConstants Condition="'$(TargetFramework)' != 'net462'">$(DefineConstants);FEATURE_FILE_SYSTEM_ACL_EXTENSIONS</DefineConstants>
@@ -26,6 +28,10 @@
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Condition="'$(TargetFramework)' == 'netstandard2.0'" Include="Nullable" Version="1.3.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath=""/>
   </ItemGroup>
