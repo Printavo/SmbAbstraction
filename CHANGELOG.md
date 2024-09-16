@@ -9,6 +9,9 @@ and this project tries to adhere to [Semantic Versioning](https://semver.org/spe
 
 ### Changed
 - Initial version after fork.
+- .Net Standard 2.0 support.
+- System.IO.Abstractions 21.0.29 support.
+- SMBLibrary 1.5.3.5 support.
 
 ## [1.1.15] 2020-06-19
 
