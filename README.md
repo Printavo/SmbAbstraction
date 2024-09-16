@@ -1,12 +1,6 @@
 # SmbAbstraction
 
-This library implements the System.IO.Abstractions interfaces for interacting
-with the filesystem, and adds support for interacting with UNC or SMB paths.
-
-The intent is to provide an intuitive way to operate against SMB/UNC shares along with being able to operate on UNC shares from Linux/OSX.
-
-The project is curretly a work in progress and is not guaranteed to work for
-your specific application.
+This project is a fork of https://github.com/jordanlytle/SmbAbstraction with two key differences: 1) It uses the original SMBLibrary as opposed to SMBLibraryLite, and 2) It conforms to newer versions of https://github.com/TestableIO/System.IO.Abstractions interfaces. This library implements the System.IO.Abstractions interfaces for interacting with the filesystem and adds support for interacting with UNC or SMB paths. The intent is to provide an intuitive way to operate against SMB/UNC shares along with being able to operate on UNC shares from Linux/OSX. The project is curretly a work in progress and is not guaranteed to work for your specific application.
 
 # Usage
 
