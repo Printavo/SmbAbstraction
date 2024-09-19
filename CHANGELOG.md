@@ -5,13 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project tries to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] 2024-09-16
+## [2.0.0] 2024-09-16
 
 ### Changed
 - Initial version after fork.
+- MANY breaking changes from original project.
+- New Namespace for all classes.
+- Case changes of class names, e.g. SMBFileSystem is now SmbFileSystem.
+- Parameter order / signature changes for many class constructors.
 - .Net Standard 2.0 support.
 - System.IO.Abstractions 21.0.29 support.
 - SMBLibrary 1.5.3.5 support.
+- Partial null static analysis support.
+- Removed public accessibility for most PathExtensions methods.
+- Added SmbFileSystemExtensions extension methods.
 
 ## [1.1.15] 2020-06-19
 
@@ -98,7 +105,7 @@ and Directories.
 ## [1.1.8] - 2020-05-06
 
 ### Changed
-- Add `ISmbFileSystemSettings` and `SmbFileSystemSettings` to allow configuring `ClientSessionTimeout` which defaults to `45` seconds
+- Add `ISmbFileSystemSettings` and `SmbFileSystemOptions` to allow configuring `ClientSessionTimeout` which defaults to `45` seconds
 	- `ClientSessionTimeout` is used to set the max time to wait for a `STATUS_PENDING` status to clear. [As per spec, it seemed like the most appropriate timeout name to use.](https://docs.microsoft.com/en-us/archive/blogs/openspecification/cifs-and-smb-timeouts-in-windows)
 	- Replaced all old `STATUS_PENDING` (and others) retry logic to use the configured `ClientSessionTimeout`
 - Handle `STATUS_PENDING` in `SMBStream.Read()` 

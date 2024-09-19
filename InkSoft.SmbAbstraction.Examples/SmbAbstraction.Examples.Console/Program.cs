@@ -1,39 +1,27 @@
-﻿using System;
+﻿using InkSoft.SmbAbstraction;
 using System.IO.Abstractions;
-using SmbAbstraction;
 
-namespace SmbAbstraction.Examples.Console
+const string c_domain = "domain";
+const string c_username = "username";
+const string c_password = "password";
+const string? c_sharePath = @"\\host\ShareName"; // e.g. \\host\ShareName or smb://host/sharename
+
+ISmbCredentialProvider credentialProvider = new SmbCredentialProvider();
+ISmbClientFactory clientFactory = new Smb2ClientFactory();
+IFileSystem fileSystem = new SmbFileSystem(clientFactory, credentialProvider, null, null);
+string path = fileSystem.Path.Combine(c_sharePath, "test.txt");
+
+// SMBCredential will parse the share path from path
+using var credential = SmbCredential.AddToProvider(c_domain, c_username, c_password, c_sharePath, credentialProvider);
+
+// FileInfo
+var fileInfo = fileSystem.FileInfo.New(path);
+
+// DirectoryInfo
+var directoryInfo = fileSystem.DirectoryInfo.New(path);
+
+// Stream
+using (var stream = fileSystem.File.Open(path, System.IO.FileMode.Open))
 {
-    class Program
-    {
-        static void Main(string[] args)
-        {
-            var domain = "domain";
-            var username = "username";
-            var password = "password";
-
-            var sharePath = "valid_unc/smb_share_path"; //ie. \\host\sharename or smb://host/sharename
-
-            ISMBCredentialProvider credentialProvider = new SMBCredentialProvider();
-            ISMBClientFactory clientFactory = new SMB2ClientFactory();
-            IFileSystem fileSystem = new SMBFileSystem(clientFactory, credentialProvider, 65536u);
-
-            //var path = _fileSystem.Path.Combine(sharePath, "test.txt");
-
-            using (var credential = new SMBCredential(domain, username, password, sharePath, credentialProvider)) // NOTE: You can interchange path with sharePath here. 
-            {                                                                                                     // SMBCredential will parse the share path from path
-                //FileInfo
-                //_fileSystem.FileInfo.FromFileName(path)
-
-                //DirectoryInfo
-                //_fileSystem.DirectoryInfo.FromDirectoryName(path)
-
-                //Stream
-                //using (var stream = _fileSystem.File.Open(path, System.IO.FileMode.Open))
-                //{
-
-                //}
-            }
-        }
-    }
+    // Do stuff...
 }

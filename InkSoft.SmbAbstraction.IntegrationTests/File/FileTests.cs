@@ -18,8 +18,7 @@ public abstract class FileTests
         _fileSystem = _fixture.FileSystem;
     }
 
-    [Fact]
-    [Trait("Category", "Integration")]
+    [Fact, Trait("Category", "Integration")]
     public void CheckDeleteCompletes()
     {
         string? tempFileName = $"temp-{DateTime.Now.ToFileTimeUtc()}.txt";
@@ -27,7 +26,7 @@ public abstract class FileTests
         string? directory = _fileSystem.Path.Combine(_fixture.RootPath, _fixture.Directories.First());
         string? tempFilePath = _fileSystem.Path.Combine(_fixture.LocalTempDirectory, tempFileName);
 
-        using var credential = new SmbCredential(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
+        using var credential = SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
 
         if (!_fileSystem.File.Exists(tempFilePath))
         {
@@ -43,45 +42,41 @@ public abstract class FileTests
         _fileSystem.File.Delete(tempFilePath);
     }
 
-    [Fact]
-    [Trait("Category", "Integration")]
+    [Fact, Trait("Category", "Integration")]
     public void TestExistsForExistingFile()
     {
         var credentials = _fixture.ShareCredentials;
         string? filePath = _fileSystem.Path.Combine(_fixture.RootPath, _fixture.Files.First());
 
-        using var credential = new SmbCredential(credentials.Domain, credentials.Username, credentials.Password, _fixture.RootPath, _fixture.SmbCredentialProvider);
+        using var credential = SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, _fixture.RootPath, _fixture.SmbCredentialProvider);
 
         Assert.True(_fileSystem.File.Exists(filePath));
     }
 
-    [Fact]
-    [Trait("Category", "Integration")]
+    [Fact, Trait("Category", "Integration")]
     public void TestExistsForNonExistingFile()
     {
         string? tempFileName = $"temp-{DateTime.Now.ToFileTimeUtc()}.txt";
         var credentials = _fixture.ShareCredentials;
         string? tempFilePath = _fileSystem.Path.Combine(_fixture.RootPath, tempFileName);
 
-        using var credential = new SmbCredential(credentials.Domain, credentials.Username, credentials.Password, _fixture.RootPath, _fixture.SmbCredentialProvider);
+        using var credential = SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, _fixture.RootPath, _fixture.SmbCredentialProvider);
 
         Assert.False(_fileSystem.File.Exists(tempFilePath));
     }
 
-    [Fact]
-    [Trait("Category", "Integration")]
+    [Fact, Trait("Category", "Integration")]
     public void TestExistsForDirectory()
     {
         var credentials = _fixture.ShareCredentials;
         string? filePath = _fileSystem.Path.Combine(_fixture.RootPath, _fixture.Directories.First());
 
-        using var credential = new SmbCredential(credentials.Domain, credentials.Username, credentials.Password, _fixture.RootPath, _fixture.SmbCredentialProvider);
+        using var credential = SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, _fixture.RootPath, _fixture.SmbCredentialProvider);
 
         Assert.False(_fileSystem.File.Exists(filePath));
     }
 
-    [Fact]
-    [Trait("Category", "Integration")]
+    [Fact, Trait("Category", "Integration")]
     public void TestMove()
     {
         string? tempFileName = $"temp-{DateTime.Now.ToFileTimeUtc()}.txt";
@@ -89,7 +84,7 @@ public abstract class FileTests
         string? directory = _fileSystem.Path.Combine(_fixture.RootPath, _fixture.Directories.First());
         string? tempFilePath = _fileSystem.Path.Combine(_fixture.RootPath, tempFileName);
 
-        using var credential = new SmbCredential(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
+        using var credential = SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
 
         if (!_fileSystem.File.Exists(tempFilePath))
         {
@@ -106,8 +101,7 @@ public abstract class FileTests
 
     }
 
-    [Fact]
-    [Trait("Category", "Integration")]
+    [Fact, Trait("Category", "Integration")]
     public void TestMove_WhereSourceIsLocal()
     {
         string? tempFileName = $"temp-{DateTime.Now.ToFileTimeUtc()}.txt";
@@ -115,7 +109,7 @@ public abstract class FileTests
         string? directory = _fileSystem.Path.Combine(_fixture.RootPath, _fixture.Directories.First());
         string? tempFilePath = _fileSystem.Path.Combine(_fixture.LocalTempDirectory, tempFileName);
 
-        using var credential = new SmbCredential(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
+        using var credential = SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
 
         if (!_fileSystem.File.Exists(tempFilePath))
         {
@@ -132,8 +126,7 @@ public abstract class FileTests
 
     }
 
-    [Fact]
-    [Trait("Category", "Integration")]
+    [Fact, Trait("Category", "Integration")]
     public void TestMoveBetweenFileSystems_WhereSourceIsShare()
     {
         string? tempFileName = $"temp-{DateTime.Now.ToFileTimeUtc()}.txt";
@@ -141,7 +134,7 @@ public abstract class FileTests
         string? directory = _fileSystem.Path.Combine(_fixture.RootPath, _fixture.Directories.First());
         string? tempFilePath = _fileSystem.Path.Combine(_fixture.RootPath, tempFileName);
 
-        using var credential = new SmbCredential(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
+        using var credential = SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
 
         if (!_fileSystem.File.Exists(tempFilePath))
         {
@@ -159,8 +152,7 @@ public abstract class FileTests
         _fileSystem.File.Delete(moveToFilePath);
     }
 
-    [Fact]
-    [Trait("Category", "Integration")]
+    [Fact, Trait("Category", "Integration")]
     public void TestCreateFile()
     {
         string? tempFileName = $"temp-{DateTime.Now.ToFileTimeUtc()}.txt";
@@ -168,28 +160,26 @@ public abstract class FileTests
         string? directory = _fileSystem.Path.Combine(_fixture.RootPath, _fixture.Directories.First());
         string? tempFilePath = _fileSystem.Path.Combine(_fixture.RootPath, tempFileName);
 
-        using var credential = new SmbCredential(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
+        using var credential = SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
         using var fileStream = _fileSystem.File.Create(tempFilePath);
         fileStream.Close();
 
         _fileSystem.File.Delete(tempFilePath);
     }
 
-    [Fact]
-    [Trait("Category", "Integration")]
+    [Fact, Trait("Category", "Integration")]
     public void TestFileOpenOnExistingFile()
     {
         var credentials = _fixture.ShareCredentials;
         string? filePath = _fileSystem.Path.Combine(_fixture.RootPath, _fixture.Files.First());
 
-        using var credential = new SmbCredential(credentials.Domain, credentials.Username, credentials.Password, _fixture.RootPath, _fixture.SmbCredentialProvider);
+        using var credential = SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, _fixture.RootPath, _fixture.SmbCredentialProvider);
 
         using var fileStream = _fileSystem.File.Open(filePath, FileMode.Open);
         fileStream.Close();
     }
 
-    [Fact]
-    [Trait("Category", "Integration")]
+    [Fact, Trait("Category", "Integration")]
     public void TestFileOpenOnCreatedFile()
     {
         string? tempFileName = $"temp-{DateTime.Now.ToFileTimeUtc()}.txt";
@@ -197,7 +187,7 @@ public abstract class FileTests
         string? directory = _fileSystem.Path.Combine(_fixture.RootPath, _fixture.Directories.First());
         string? tempFilePath = _fileSystem.Path.Combine(_fixture.RootPath, tempFileName);
 
-        using var credential = new SmbCredential(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
+        using var credential = SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
 
         if (!_fileSystem.File.Exists(tempFilePath))
         {
@@ -211,8 +201,7 @@ public abstract class FileTests
         _fileSystem.File.Delete(tempFilePath);
     }
 
-    [Fact]
-    [Trait("Category", "Integration")]
+    [Fact, Trait("Category", "Integration")]
     public void TestFileOpen_FileModeCreate()
     {
         string? tempFileName = $"temp-{DateTime.Now.ToFileTimeUtc()}.txt";
@@ -220,7 +209,7 @@ public abstract class FileTests
         string? directory = _fileSystem.Path.Combine(_fixture.RootPath, _fixture.Directories.First());
         string? tempFilePath = _fileSystem.Path.Combine(_fixture.RootPath, tempFileName);
 
-        using var credential = new SmbCredential(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
+        using var credential = SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
 
         using var fileStream = _fileSystem.File.Open(tempFilePath, FileMode.Create);
         fileStream.Close();
@@ -228,8 +217,7 @@ public abstract class FileTests
         _fileSystem.File.Delete(tempFilePath);
     }
 
-    [Fact]
-    [Trait("Category", "Integration")]
+    [Fact, Trait("Category", "Integration")]
     public void TestFileOpen_FileModeOpenOrCreate()
     {
         string? tempFileName = $"temp-{DateTime.Now.ToFileTimeUtc()}.txt";
@@ -237,7 +225,7 @@ public abstract class FileTests
         string? directory = _fileSystem.Path.Combine(_fixture.RootPath, _fixture.Directories.First());
         string? tempFilePath = _fileSystem.Path.Combine(_fixture.RootPath, tempFileName);
 
-        using var credential = new SmbCredential(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
+        using var credential = SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
 
         using var fileStream = _fileSystem.File.Open(tempFilePath, FileMode.OpenOrCreate);
         fileStream.Close();
@@ -245,15 +233,14 @@ public abstract class FileTests
         _fileSystem.File.Delete(tempFilePath);
     }
 
-    [Fact]
-    [Trait("Category", "Integration")]
+    [Fact, Trait("Category", "Integration")]
     public void CanSetCreationTime()
     {
         string? tempFileName = $"temp-{DateTime.Now.ToFileTimeUtc()}.txt";
         var credentials = _fixture.ShareCredentials;
         string? tempFilePath = _fileSystem.Path.Combine(_fixture.RootPath, tempFileName);
 
-        using var credential = new SmbCredential(credentials.Domain, credentials.Username, credentials.Password, _fixture.RootPath, _fixture.SmbCredentialProvider);
+        using var credential = SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, _fixture.RootPath, _fixture.SmbCredentialProvider);
 
         if (!_fileSystem.File.Exists(tempFilePath))
         {

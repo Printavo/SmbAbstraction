@@ -1,16 +1,14 @@
-﻿using System;
+﻿using InkSoft.SmbAbstraction.Utilities;
+using Microsoft.Extensions.Logging;
+using SMBLibrary;
+using SMBLibrary.Client;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using InkSoft.SmbAbstraction.Utilities;
-using Microsoft.Extensions.Logging;
-using SMBLibrary;
-using SMBLibrary.Client;
 
 namespace InkSoft.SmbAbstraction;
 
@@ -19,21 +17,21 @@ namespace InkSoft.SmbAbstraction;
 [Serializable]
 #endif
 public partial class SmbFile(
+    IFileSystem fileSystem,
     ISmbClientFactory smbClientFactory,
     ISmbCredentialProvider credentialProvider,
-    IFileSystem fileSystem,
-    uint maxBufferSize = 65536,
-    ISmbFileSystemSettings? smbFileSystemSettings = null,
+    SmbFileSystemOptions? smbFileSystemOptions = null,
     ILoggerFactory? loggerFactory = null
-) : FileWrapper(fileSystem)
+) : FileWrapper(new FileSystem())
 {
+    /// <inheritdoc cref="SmbFileSystem"/>
+    public new IFileSystem FileSystem => fileSystem;
+
     private readonly ILogger<SmbFile>? _logger = loggerFactory?.CreateLogger<SmbFile>();
-    private readonly ISmbFileSystemSettings _smbFileSystemSettings = smbFileSystemSettings ?? new SmbFileSystemSettings();
-    private readonly ISmbClientFactory _smbClientFactory = smbClientFactory;
-    private readonly ISmbCredentialProvider _credentialProvider = credentialProvider;
-    private readonly IFileSystem _fileSystem = fileSystem;
-    private readonly uint _maxBufferSize = maxBufferSize;
-    private SmbFileInfoFactory FileInfoFactory => (SmbFileInfoFactory)_fileSystem.FileInfo;
+    
+    private readonly SmbFileSystemOptions _smbFileSystemOptions = smbFileSystemOptions ??= new();
+    
+    private SmbFileInfoFactory FileInfoFactory => (SmbFileInfoFactory)FileSystem.FileInfo;
 
     public SMBTransportType Transport { get; set; } = SMBTransportType.DirectTCPTransport;
 
@@ -108,8 +106,8 @@ public partial class SmbFile(
     public override void Copy(string sourceFileName, string destFileName)
     {
         using Stream sourceStream = OpenRead(sourceFileName);
-        using Stream destStream = OpenWrite(destFileName);
-        sourceStream.CopyTo(destStream, Convert.ToInt32(_maxBufferSize));
+        using Stream destStream = Open(destFileName, FileMode.Create, FileAccess.Write);
+        sourceStream.CopyTo(destStream, Convert.ToInt32(_smbFileSystemOptions.MaxBufferSize));
     }
 
     public override void Copy(string sourceFileName, string destFileName, bool overwrite)
@@ -130,15 +128,13 @@ public partial class SmbFile(
     public override FileSystemStream Create(string path, int bufferSize, FileOptions options)
     {
         if (!path.IsSharePath())
-        {
             return base.Create(path, bufferSize, options);
-        }
 
         throw new NotImplementedException();
         // return new BufferedStream(Open(path, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite, options, null), bufferSize);
     }
 
-    public override StreamWriter CreateText(string path) => path.IsSharePath() ? new(OpenWrite(path)) : base.CreateText(path);
+    public override StreamWriter CreateText(string path) => path.IsSharePath() ? new(Open(path, FileMode.Create, FileAccess.Write)) : base.CreateText(path);
 
     public override void Delete(string path)
     {
@@ -149,16 +145,12 @@ public partial class SmbFile(
         }
 
         if (!path.TryResolveHostnameFromPath(out var ipAddress))
-        {
             throw new SmbException($"Failed to Delete {path}", new ArgumentException($"Unable to resolve \"{path.Hostname()}\""));
-        }
 
-        var credential = _credentialProvider.GetSmbCredential(path);
+        var credential = credentialProvider.GetSmbCredential(path);
 
         if (credential == null)
-        {
             throw new SmbException($"Failed to Delete {path}", new InvalidCredentialException($"Unable to find credential in SMBCredentialProvider for path: {path}"));
-        }
 
         ISMBFileStore fileStore = null;
         object handle = null;
@@ -168,12 +160,12 @@ public partial class SmbFile(
             string? shareName = path.ShareName();
             string? relativePath = path.RelativeSharePath();
 
-            _logger?.LogTrace($"Trying to Delete {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}");
+            _logger?.LogTrace("Trying to Delete {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
 
-            using var connection = SmbConnection.CreateSmbConnection(_smbClientFactory, ipAddress, Transport, credential, _maxBufferSize);
+            using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, _smbFileSystemOptions);
             fileStore = connection.SmbClient.TreeConnect(shareName, out var status);
 
-            status.HandleStatus();
+            status.AssertSuccess();
 
             const AccessMask c_accessMask = AccessMask.SYNCHRONIZE | AccessMask.DELETE;
             const ShareAccess c_shareAccess = ShareAccess.Read | ShareAccess.Delete;
@@ -186,14 +178,14 @@ public partial class SmbFile(
             do
             {
                 if(status == NTStatus.STATUS_PENDING)
-                    _logger.LogTrace($"STATUS_PENDING while trying to delete file {path}. {stopwatch.Elapsed.TotalSeconds}/{_smbFileSystemSettings.ClientSessionTimeout} seconds elapsed.");
+                    _logger?.LogTrace("STATUS_PENDING while trying to delete file {path}. {stopwatchElapsedTotalSeconds}/{smbFileSystemOptionsClientSessionTimeout} seconds elapsed.", path, stopwatch.Elapsed.TotalSeconds, _smbFileSystemOptions.ClientSessionTimeout);
 
-                status = fileStore.CreateFile(out handle, out var fileStatus, relativePath, c_accessMask, 0, c_shareAccess, c_disposition, c_createOptions, null);
+                status = fileStore.CreateFile(out handle, out _, relativePath, c_accessMask, 0, c_shareAccess, c_disposition, c_createOptions, null);
             }
-            while (status == NTStatus.STATUS_PENDING && stopwatch.Elapsed.TotalSeconds <= _smbFileSystemSettings.ClientSessionTimeout);
+            while (status == NTStatus.STATUS_PENDING && stopwatch.Elapsed.TotalSeconds <= _smbFileSystemOptions.ClientSessionTimeout);
 
             stopwatch.Stop();
-            status.HandleStatus();
+            status.AssertSuccess();
 
             // There should be a separate option to delete, but it doesn't seem to exist in the library we are using, so this should work for now. Really hacky though.
             FileStoreUtilities.CloseFile(fileStore, ref handle);
@@ -212,9 +204,7 @@ public partial class SmbFile(
     public override bool Exists(string path)
     {
         if (!path.IsSharePath())
-        {
             return base.Exists(path);
-        }
 
         ISMBFileStore fileStore = null;
         object handle = null;
@@ -224,45 +214,40 @@ public partial class SmbFile(
             if (!path.TryResolveHostnameFromPath(out var ipAddress))
                 throw new SmbException($"Failed to determine if {path} exists", new ArgumentException($"Unable to resolve \"{path.Hostname()}\""));
 
-            var credential = _credentialProvider.GetSmbCredential(path);
-
-            using var connection = SmbConnection.CreateSmbConnection(_smbClientFactory, ipAddress, Transport, credential, _maxBufferSize);
+            var credential = credentialProvider.GetSmbCredential(path);
+            using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, _smbFileSystemOptions);
             string? shareName = path.ShareName();
-            string? directoryPath = _fileSystem.Path.GetDirectoryName(path).Replace(path.SharePath(), "").RemoveLeadingAndTrailingSeparators();
-            string? fileName = _fileSystem.Path.GetFileName(path);
-            _logger?.LogTrace($"Trying to determine if {{DirectoryPath: {directoryPath}}} {{FileName: {fileName}}} Exists for {{ShareName: {shareName}}}");
-            fileStore = connection.SmbClient.TreeConnect(shareName, out var status);
-            status.HandleStatus();
+            // SMBLibrary (or maybe some SMB servers?) don't seem to like forward slashes in the path, so we're replacing them with backslashes.
+            string? directoryPath = FileSystem.Path.GetDirectoryName(path).Replace(path.SharePath(), "").RemoveLeadingAndTrailingSeparators().Replace('/','\\');
+            string? fileName = FileSystem.Path.GetFileName(path);
+            _logger?.LogTrace("Trying to determine if {{DirectoryPath: {directoryPath}}} {{FileName: {fileName}}} Exists for {{ShareName: {shareName}}}", directoryPath, fileName, shareName);
+            fileStore = connection.SmbClient.TreeConnect(shareName, out var ntStatus);
+            ntStatus.AssertSuccess();
+            
+            ntStatus = fileStore.CreateFile(
+                out handle,
+                out _,
+                directoryPath,
+                AccessMask.SYNCHRONIZE | AccessMask.GENERIC_READ,
+                0,
+                ShareAccess.Read,
+                CreateDisposition.FILE_OPEN,
+                CreateOptions.FILE_SYNCHRONOUS_IO_NONALERT | CreateOptions.FILE_DIRECTORY_FILE,
+                null
+            );
+            
+            if (ntStatus.IsAbsent())
+                return false;
 
-            const AccessMask c_accessMask = AccessMask.SYNCHRONIZE | AccessMask.GENERIC_READ;
-            const ShareAccess c_shareAccess = ShareAccess.Read;
-            const CreateDisposition c_disposition = CreateDisposition.FILE_OPEN;
-            const CreateOptions c_createOptions = CreateOptions.FILE_SYNCHRONOUS_IO_NONALERT | CreateOptions.FILE_DIRECTORY_FILE;
-
-            status = fileStore.CreateFile(out handle, out _, directoryPath, c_accessMask, 0, c_shareAccess, c_disposition, c_createOptions, null);
-            status.HandleStatus();
+            ntStatus.AssertSuccess();
             fileStore.QueryDirectory(out var queryDirectoryFileInformation, handle, string.IsNullOrEmpty(fileName) ? "*" : fileName, FileInformationClass.FileDirectoryInformation);
-
-            foreach (var file in queryDirectoryFileInformation)
-            {
-                if (file.FileInformationClass == FileInformationClass.FileDirectoryInformation)
-                {
-                    var fileDirectoryInformation = (FileDirectoryInformation)file;
-                    if (fileDirectoryInformation.FileName == fileName)
-                    {
-                        FileStoreUtilities.CloseFile(fileStore, ref handle);
-                        return true;
-                    }
-                }
-            }
-
-            FileStoreUtilities.CloseFile(fileStore, ref handle);
-
-            return false;
+            bool exists = queryDirectoryFileInformation.Any(file => file.FileInformationClass == FileInformationClass.FileDirectoryInformation && ((FileDirectoryInformation)file).FileName == fileName);
+            return exists;
         }
         catch (Exception ex)
         {
-            _logger?.LogTrace(ex, $"Failed to determine if {path} exists.");
+            // TBD: Should we really be returning false instead of throwing?
+            _logger?.LogError(ex, "Failed to determine if {path} exists.", path);
             return false;
         }
         finally
@@ -271,118 +256,40 @@ public partial class SmbFile(
         }
     }
 
-    public override System.IO.FileAttributes GetAttributes(string path)
-    {
-        if (!path.IsSharePath())
-        {
-            return base.GetAttributes(path);
-        }
+    public override System.IO.FileAttributes GetAttributes(string path) => path.IsSharePath() ? FileInfoFactory.New(path).Attributes : base.GetAttributes(path);
 
-        var fileInfo = FileInfoFactory.New(path);
+    public override DateTime GetCreationTime(string path) => path.IsSharePath() ? FileInfoFactory.New(path).CreationTime : base.GetCreationTime(path);
 
-        return fileInfo.Attributes;
-    }
+    public override DateTime GetCreationTimeUtc(string path) => path.IsSharePath() ? FileInfoFactory.New(path).CreationTimeUtc : base.GetCreationTimeUtc(path);
 
-    public override DateTime GetCreationTime(string path)
-    {
-        if (!path.IsSharePath())
-        {
-            return base.GetCreationTime(path);
-        }
+    public override DateTime GetLastAccessTime(string path) => path.IsSharePath() ? FileInfoFactory.New(path).LastAccessTime : base.GetLastAccessTime(path);
 
-        var fileInfo = FileInfoFactory.New(path);
+    public override DateTime GetLastAccessTimeUtc(string path) => path.IsSharePath() ? FileInfoFactory.New(path).LastAccessTimeUtc : base.GetLastAccessTimeUtc(path);
 
-        return fileInfo.CreationTime;
-    }
+    public override DateTime GetLastWriteTime(string path) => path.IsSharePath() ? FileInfoFactory.New(path).LastAccessTimeUtc : base.GetLastWriteTime(path);
 
-    public override DateTime GetCreationTimeUtc(string path)
-    {
-        if (!path.IsSharePath())
-        {
-            return base.GetCreationTimeUtc(path);
-        }
-
-        var fileInfo = FileInfoFactory.New(path);
-
-        return fileInfo.CreationTimeUtc;
-    }
-
-    public override DateTime GetLastAccessTime(string path)
-    {
-        if (!path.IsSharePath())
-        {
-            return base.GetLastAccessTime(path);
-        }
-
-        var fileInfo = FileInfoFactory.New(path);
-
-        return fileInfo.LastAccessTime;
-    }
-
-    public override DateTime GetLastAccessTimeUtc(string path)
-    {
-        if (!path.IsSharePath())
-        {
-            return base.GetLastAccessTimeUtc(path);
-        }
-
-        var fileInfo = FileInfoFactory.New(path);
-
-        return fileInfo.LastAccessTimeUtc;
-    }
-
-    public override DateTime GetLastWriteTime(string path)
-    {
-        if (!path.IsSharePath())
-        {
-            return base.GetLastWriteTime(path);
-        }
-
-        var fileInfo = FileInfoFactory.New(path);
-
-        return fileInfo.LastAccessTimeUtc;
-    }
-
-    public override DateTime GetLastWriteTimeUtc(string path)
-    {
-        if (!path.IsSharePath())
-        {
-            return base.GetLastWriteTimeUtc(path);
-        }
-
-        var fileInfo = FileInfoFactory.New(path);
-
-        return fileInfo.LastAccessTimeUtc;
-    }
+    public override DateTime GetLastWriteTimeUtc(string path) => path.IsSharePath() ? FileInfoFactory.New(path).LastAccessTimeUtc : base.GetLastWriteTimeUtc(path);
 
     public override void Move(string sourceFileName, string destFileName)
     {
         if (!sourceFileName.IsSharePath() && !destFileName.IsSharePath())
-        {
             base.Move(sourceFileName, destFileName);
-        }
         else
-        {
             Move(sourceFileName, destFileName, null, null);
-        }
     }
 
-    internal void Move(string sourceFileName, string destFileName, ISmbCredential sourceCredential, ISmbCredential destinationCredential)
+    internal void Move(string sourceFileName, string destFileName, ISmbCredential? sourceCredential, ISmbCredential? destinationCredential)
     {
         using (Stream sourceStream = OpenRead(sourceFileName, sourceCredential))
         {
-            using (Stream destStream = OpenWrite(destFileName, destinationCredential))
-            {
-                sourceStream.CopyTo(destStream, Convert.ToInt32(_maxBufferSize));
-            }
+            using Stream destStream = Open(destFileName, FileMode.Create, FileAccess.Write, destinationCredential);
+            sourceStream.CopyTo(destStream, Convert.ToInt32(_smbFileSystemOptions.MaxBufferSize));
         }
 
-        _fileSystem.File.Delete(sourceFileName);
+        FileSystem.File.Delete(sourceFileName);
     }
 
-    public override FileSystemStream Open(string path, FileMode mode) => Open(path, mode, null);
-
-    private FileSystemStream Open(string path, FileMode mode, ISmbCredential? credential) => path.IsSharePath() ? Open(path, mode, FileAccess.ReadWrite, credential) : base.Open(path, mode);
+    public override FileSystemStream Open(string path, FileMode mode) => path.IsSharePath() ? Open(path, mode, FileAccess.ReadWrite, null) : base.Open(path, mode);
 
     public override FileSystemStream Open(string path, FileMode mode, FileAccess access) => Open(path, mode, access, null);
 
@@ -398,11 +305,8 @@ public partial class SmbFile(
         if (!path.TryResolveHostnameFromPath(out var ipAddress))
             throw new SmbException($"Failed to Open {path}", new ArgumentException($"Unable to resolve \"{path.Hostname()}\""));
 
-        var accessMask = AccessMask.MAXIMUM_ALLOWED;
-        var shareAccess = ShareAccess.None;
-        var disposition = CreateDisposition.FILE_OPEN;
+        // TODO: Why are we switching on FileOptions.None, making most of this unreachable?
         CreateOptions createOptions;
-
         switch (FileOptions.None)
         {
             case FileOptions.DeleteOnClose:
@@ -426,6 +330,8 @@ public partial class SmbFile(
                 break;
         }
 
+        var accessMask = AccessMask.MAXIMUM_ALLOWED;
+        var shareAccess = ShareAccess.None;
         switch (access)
         {
             case FileAccess.Read:
@@ -442,81 +348,68 @@ public partial class SmbFile(
                 break;
         }
 
-        credential ??= _credentialProvider.GetSmbCredential(path);
+        credential ??= credentialProvider.GetSmbCredential(path);
 
         if (credential == null)
             throw new SmbException($"Failed to Open {path}", new InvalidCredentialException($"Unable to find credential in SMBCredentialProvider for path: {path}"));
 
-        SmbConnection connection = null;
+        SmbConnection smbConnection = null;
         try
         {
-            connection = SmbConnection.CreateSmbConnectionForStream(_smbClientFactory, ipAddress, Transport, credential, _maxBufferSize);
+            smbConnection = SmbConnection.CreateSmbConnectionForStream(smbClientFactory, ipAddress, Transport, credential, _smbFileSystemOptions);
             string? shareName = path.ShareName();
             string? relativePath = path.RelativeSharePath();
-            var fileStore = connection.SmbClient.TreeConnect(shareName, out var status);
-            status.HandleStatus();
+            var fileStore = smbConnection.SmbClient.TreeConnect(shareName, out var ntStatus);
+            ntStatus.AssertSuccess();
 
-            switch (mode)
+            var createDisposition = mode switch
             {
-                case FileMode.Create:
-                    disposition = CreateDisposition.FILE_OVERWRITE_IF;
-                    break;
-                case FileMode.CreateNew:
-                    disposition = CreateDisposition.FILE_CREATE;
-                    break;
-                case FileMode.Open:
-                    disposition = CreateDisposition.FILE_OPEN;
-                    break;
-                case FileMode.OpenOrCreate:
-                    disposition = CreateDisposition.FILE_OPEN_IF;
-                    break;
-            }
+                FileMode.Create => CreateDisposition.FILE_OVERWRITE_IF,
+                FileMode.CreateNew => CreateDisposition.FILE_CREATE,
+                FileMode.OpenOrCreate => CreateDisposition.FILE_OPEN_IF,
+                FileMode.Open => CreateDisposition.FILE_OPEN,
+                FileMode.Truncate => CreateDisposition.FILE_OVERWRITE_IF,
+                FileMode.Append => CreateDisposition.FILE_OPEN_IF,
+                _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null)
+            };
 
             object handle;
             var stopwatch = new Stopwatch();
-                
             stopwatch.Start();
             do
             {
-                if (status == NTStatus.STATUS_PENDING)
-                    _logger.LogTrace($"STATUS_PENDING while trying to open file {path}. {stopwatch.Elapsed.TotalSeconds}/{_smbFileSystemSettings.ClientSessionTimeout} seconds elapsed.");
+                if (ntStatus == NTStatus.STATUS_PENDING)
+                    _logger?.LogTrace("STATUS_PENDING while trying to open file {path}. {stopwatchElapsedTotalSeconds}/{smbFileSystemOptionsClientSessionTimeout} seconds elapsed.", path, stopwatch.Elapsed.TotalSeconds, _smbFileSystemOptions.ClientSessionTimeout);
 
-                status = fileStore.CreateFile(out handle, out _, relativePath, accessMask, 0, shareAccess,
-                    disposition, createOptions, null);
+                ntStatus = fileStore.CreateFile(out handle, out _, relativePath, accessMask, 0, shareAccess, createDisposition, createOptions, null);
             }
-            while (status == NTStatus.STATUS_PENDING && stopwatch.Elapsed.TotalSeconds <= _smbFileSystemSettings.ClientSessionTimeout);
+            while (ntStatus == NTStatus.STATUS_PENDING && stopwatch.Elapsed.TotalSeconds <= _smbFileSystemOptions.ClientSessionTimeout);
             stopwatch.Stop();
 
-            status.HandleStatus();
-
+            ntStatus.AssertSuccess();
             FileInformation fileInfo;
                 
             stopwatch.Reset();
             stopwatch.Start();
             do
             {
-                status = fileStore.GetFileInformation(out fileInfo, handle, FileInformationClass.FileStandardInformation);
+                ntStatus = fileStore.GetFileInformation(out fileInfo, handle, FileInformationClass.FileStandardInformation);
             }
-            while (status == NTStatus.STATUS_NETWORK_NAME_DELETED && stopwatch.Elapsed.TotalSeconds <= _smbFileSystemSettings.ClientSessionTimeout);
+            while (ntStatus == NTStatus.STATUS_NETWORK_NAME_DELETED && stopwatch.Elapsed.TotalSeconds <= _smbFileSystemOptions.ClientSessionTimeout);
             stopwatch.Stop();
                 
-            status.HandleStatus();
-
-            var fileStandardInfo = (FileStandardInformation)fileInfo;
-
-            var s = new SmbFsStream(fileStore, handle, connection, fileStandardInfo.EndOfFile, _smbFileSystemSettings, path, false);
+            ntStatus.AssertSuccess();
+            var s = new SmbFsStream(fileStore, handle, smbConnection, ((FileStandardInformation)fileInfo).EndOfFile, _smbFileSystemOptions, path, false);
 
             if (mode == FileMode.Append)
-            {
                 s.Seek(0, SeekOrigin.End);
-            }
-
+ 
             return s;
         }
         catch (Exception ex)
         {
             // Dispose connection if fail to open stream
-            connection?.Dispose();
+            smbConnection?.Dispose();
             throw new SmbException($"Failed to Open {path}", ex);
         }
     }
@@ -527,51 +420,29 @@ public partial class SmbFile(
 
     public override StreamReader OpenText(string path) => path.IsSharePath() ? new(OpenRead(path)) : base.OpenText(path);
 
-    public override FileSystemStream OpenWrite(string path) => OpenWrite(path, null);
-
-    private FileSystemStream OpenWrite(string path, ISmbCredential? credential) => path.IsSharePath() ? Open(path, FileMode.OpenOrCreate, FileAccess.Write, credential) : base.OpenWrite(path);
+    public override FileSystemStream OpenWrite(string path) => path.IsSharePath() ? Open(path, FileMode.OpenOrCreate, FileAccess.Write, null) : base.OpenWrite(path);
 
     public override byte[] ReadAllBytes(string path)
     {
         if (!path.IsSharePath())
-        {
             return base.ReadAllBytes(path);
-        }
 
         using var ms = new MemoryStream();
         using (Stream s = OpenRead(path))
         {
-            s.CopyTo(ms, Convert.ToInt32(_maxBufferSize));
+            s.CopyTo(ms, Convert.ToInt32(_smbFileSystemOptions.MaxBufferSize));
         }
         return ms.ToArray();
     }
 
-    public override string[] ReadAllLines(string path)
-    {
-        if (!path.IsSharePath())
-        {
-            return base.ReadAllLines(path);
-        }
+    public override string[] ReadAllLines(string path) => path.IsSharePath() ? ReadLines(path).ToArray() : base.ReadAllLines(path);
 
-        return ReadLines(path).ToArray();
-    }
-
-    public override string[] ReadAllLines(string path, Encoding encoding)
-    {
-        if (!path.IsSharePath())
-        {
-            return base.ReadAllLines(path, encoding);
-        }
-
-        return ReadLines(path, encoding).ToArray();
-    }
+    public override string[] ReadAllLines(string path, Encoding encoding) => path.IsSharePath() ? ReadLines(path, encoding).ToArray() : base.ReadAllLines(path, encoding);
 
     public override string ReadAllText(string path)
     {
         if (!path.IsSharePath())
-        {
             return base.ReadAllText(path);
-        }
 
         using var sr = new StreamReader(OpenRead(path));
         return sr.ReadToEnd();
@@ -580,9 +451,7 @@ public partial class SmbFile(
     public override string ReadAllText(string path, Encoding encoding)
     {
         if (!path.IsSharePath())
-        {
             return base.ReadAllText(path, encoding);
-        }
 
         using var sr = new StreamReader(OpenRead(path), encoding);
         return sr.ReadToEnd();
@@ -591,9 +460,7 @@ public partial class SmbFile(
     public override IEnumerable<string> ReadLines(string path)
     {
         if (!path.IsSharePath())
-        {
             return base.ReadLines(path);
-        }
 
         var lines = new List<string>();
         using (var sr = new StreamReader(OpenRead(path)))
@@ -611,9 +478,7 @@ public partial class SmbFile(
     public override IEnumerable<string> ReadLines(string path, Encoding encoding)
     {
         if (!path.IsSharePath())
-        {
             return base.ReadLines(path, encoding);
-        }
 
         var lines = new List<string>();
         using (var sr = new StreamReader(OpenRead(path), encoding))
@@ -635,6 +500,7 @@ public partial class SmbFile(
             base.SetAttributes(path, fileAttributes);
             return;
         }
+
         throw new NotSupportedException();
     }
 
@@ -758,7 +624,7 @@ public partial class SmbFile(
             return;
         }
 
-        using var sr = new StreamWriter(OpenWrite(path));
+        using var sr = new StreamWriter(Open(path, FileMode.Create, FileAccess.Write));
         sr.Write(contents);
     }
 
@@ -770,7 +636,7 @@ public partial class SmbFile(
             return;
         }
 
-        using var sr = new StreamWriter(OpenWrite(path), encoding);
+        using var sr = new StreamWriter(Open(path, FileMode.Create, FileAccess.Write), encoding);
         sr.Write(contents);
     }
 
@@ -782,7 +648,7 @@ public partial class SmbFile(
             return;
         }
 
-        using var sw = new StreamWriter(OpenWrite(path));
+        using var sw = new StreamWriter(Open(path, FileMode.Create, FileAccess.Write));
         sw.Write(contents);
     }
 
@@ -794,7 +660,7 @@ public partial class SmbFile(
             return;
         }
 
-        using var sw = new StreamWriter(OpenWrite(path), encoding);
+        using var sw = new StreamWriter(Open(path, FileMode.Create, FileAccess.Write), encoding);
         sw.Write(contents);
     }
 }

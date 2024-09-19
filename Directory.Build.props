@@ -4,12 +4,14 @@
     <Copyright>Copyright © Inktavo 2024</Copyright>
     <Authors>Inktavo</Authors>
     <Company>Inktavo</Company>
-    <SignAssembly Condition="'$(Configuration)' == 'Release'">True</SignAssembly>
+    <SignAssembly>True</SignAssembly>
     <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)StrongName.snk</AssemblyOriginatorKeyFile>
     <LangVersion>12</LangVersion>
     <PackageTags>IFileSystem;SMB;UNC;System.IO.Abstractions;SMBLibrary;SMBAbstraction;Linux</PackageTags>
     <PackageProjectUrl>https://github.com/Printavo/SmbAbstraction</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Printavo/SmbAbstraction</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <DefineConstants Condition="'$(TargetFramework)' != 'net462'">$(DefineConstants);FEATURE_FILE_SYSTEM_ACL_EXTENSIONS</DefineConstants>
@@ -20,15 +22,11 @@
     <Nullable>annotations</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Nerdbank.GitVersioning" Version="3.6.143">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="SauceControl.InheritDoc" Version="2.0.1" PrivateAssets="all" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Condition="'$(TargetFramework)' == 'netstandard2.0'" Include="IndexRange" Version="1.0.3" />
     <PackageReference Condition="'$(TargetFramework)' == 'netstandard2.0'" Include="Nullable" Version="1.3.1">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

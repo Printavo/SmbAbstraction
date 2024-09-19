@@ -11,27 +11,25 @@ namespace InkSoft.SmbAbstraction;
 
 public class SmbDirectoryInfoFactory(
     IFileSystem fileSystem,
-    ISmbCredentialProvider credentialProvider,
     ISmbClientFactory smbClientFactory,
-    uint maxBufferSize,
+    ISmbCredentialProvider credentialProvider,
+    SmbFileSystemOptions? smbFileSystemOptions,
     ILoggerFactory? loggerFactory = null
 ) : IDirectoryInfoFactory
 {
-    private readonly ILogger<SmbDirectoryInfoFactory> _logger = loggerFactory?.CreateLogger<SmbDirectoryInfoFactory>();
-    private SmbDirectory? SmbDirectory => fileSystem.Directory as SmbDirectory;
-    private SmbFile? SmbFile => fileSystem.File as SmbFile;
-    private SmbFileInfoFactory? FileInfoFactory => fileSystem.FileInfo as SmbFileInfoFactory;
+    private readonly ILogger<SmbDirectoryInfoFactory>? _logger = loggerFactory?.CreateLogger<SmbDirectoryInfoFactory>();
+    
+    /// <inheritdoc cref="SmbFileSystem"/>
+    public IFileSystem FileSystem => fileSystem;
 
     public SMBTransportType Transport { get; set; } = SMBTransportType.DirectTCPTransport;
     
-    public IFileSystem FileSystem { get; } = fileSystem;
-
     public IDirectoryInfo New(string directoryName)
     {
         if (!directoryName.IsSharePath())
         {
             var dirInfo = new DirectoryInfo(directoryName);
-            return new SmbDirectoryInfo(dirInfo, fileSystem, credentialProvider);
+            return new SmbDirectoryInfo(dirInfo, FileSystem, credentialProvider);
         }
 
         return New(directoryName, null);
@@ -44,16 +42,12 @@ public class SmbDirectoryInfoFactory(
             return null;
 
         if (!path.TryResolveHostnameFromPath(out var ipAddress))
-        {
             throw new SmbException($"Failed FromDirectoryName for {path}", new ArgumentException($"Unable to resolve \"{path.Hostname()}\""));
-        }
 
         credential ??= credentialProvider.GetSmbCredential(path);
 
         if (credential == null)
-        {
             throw new SmbException($"Failed FromDirectoryName for {path}", new InvalidCredentialException($"Unable to find credential for path: {path}"));
-        }
 
         ISMBFileStore fileStore = null;
         object handle = null;
@@ -62,23 +56,18 @@ public class SmbDirectoryInfoFactory(
         {
             string? shareName = path.ShareName();
             string? relativePath = path.RelativeSharePath();
-
             _logger?.LogTrace("Trying FromDirectoryName {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
-
-            using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, maxBufferSize);
-                
+            using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, smbFileSystemOptions);
             fileStore = connection.SmbClient.TreeConnect(shareName, out var status);
+            status.AssertSuccess();
+            status = fileStore.CreateFile(out handle, out _, relativePath, AccessMask.GENERIC_READ, 0, ShareAccess.Read, CreateDisposition.FILE_OPEN, CreateOptions.FILE_DIRECTORY_FILE, null);
+            status.AssertSuccess();
 
-            status.HandleStatus();
-
-            status = fileStore.CreateFile(out handle, out var fileStatus, relativePath, AccessMask.GENERIC_READ, 0, ShareAccess.Read,
-                CreateDisposition.FILE_OPEN, CreateOptions.FILE_DIRECTORY_FILE, null);
-
-            status.HandleStatus();
-
-            status = fileStore.GetFileInformation(out var fileInfo, handle, FileInformationClass.FileBasicInformation); // If you call this with any other FileInformationClass value
-            // it doesn't work for some reason
-            return status != NTStatus.STATUS_SUCCESS ? null : new SmbDirectoryInfo(path, fileInfo, fileSystem, credentialProvider, credential);
+            // If you call GetFileInformation with any other FileInformationClass value, it doesn't work for some reason.
+            return fileStore.GetFileInformation(out var fileInfo, handle, FileInformationClass.FileBasicInformation) == NTStatus.STATUS_SUCCESS
+                ? new SmbDirectoryInfo(path, fileInfo, FileSystem, credentialProvider, credential)
+                : null // TODO: Is returning null appropriate, ever?
+            ;
         }
         catch (Exception ex)
         {
@@ -111,14 +100,14 @@ public class SmbDirectoryInfoFactory(
             string? relativePath = path.RelativeSharePath();
 
             _logger?.LogTrace("Trying to SaveDirectoryInfo {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
-            using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, maxBufferSize);
+            using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, smbFileSystemOptions);
             fileStore = connection.SmbClient.TreeConnect(shareName, out var status);
-            status.HandleStatus();
-            status = fileStore.CreateFile(out handle, out var fileStatus, relativePath, AccessMask.GENERIC_WRITE, 0, ShareAccess.Read, CreateDisposition.FILE_OPEN, CreateOptions.FILE_DIRECTORY_FILE, null);
-            status.HandleStatus();
+            status.AssertSuccess();
+            status = fileStore.CreateFile(out handle, out _, relativePath, AccessMask.GENERIC_WRITE, 0, ShareAccess.Read, CreateDisposition.FILE_OPEN, CreateOptions.FILE_DIRECTORY_FILE, null);
+            status.AssertSuccess();
             var fileInfo = dirInfo.ToSmbFileInformation(credential);
             status = fileStore.SetFileInformation(handle, fileInfo);
-            status.HandleStatus();
+            status.AssertSuccess();
         }
         catch (Exception ex)
         {
@@ -131,5 +120,5 @@ public class SmbDirectoryInfoFactory(
     }
 
     [return: NotNullIfNotNull("directoryInfo")]
-    public IDirectoryInfo Wrap(DirectoryInfo directoryInfo) => throw new NotImplementedException();
+    public IDirectoryInfo Wrap(DirectoryInfo? directoryInfo) => throw new NotImplementedException();
 }

@@ -10,10 +10,8 @@ namespace InkSoft.SmbAbstraction;
 #endif
 public class SmbFileStreamFactory(IFileSystem fileSystem) : IFileStreamFactory
 {
-    /// <inheritdoc />
-    public IFileSystem FileSystem { get; } = fileSystem;
-
-    private SmbFile SmbFile => (SmbFile)FileSystem.File;
+    /// <inheritdoc cref="SmbFileSystem"/>
+    public IFileSystem FileSystem => fileSystem;
 
     /// <inheritdoc />
     public FileSystemStream New(SafeFileHandle handle, FileAccess access) => new SmbFileStreamWrapper(new(handle, access));

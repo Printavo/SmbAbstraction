@@ -10,83 +10,87 @@ namespace InkSoft.SmbAbstraction;
 
 public class SmbConnection : IDisposable
 {
-    private static Dictionary<int, Dictionary<IPAddress, SmbConnection>> s_instances = new();
+    private static readonly Dictionary<int, Dictionary<IPAddress, SmbConnection>> s_instances = new();
+    
     private static readonly object s_connectionLock = new();
 
     private readonly IPAddress _address;
+    
     private readonly SMBTransportType _transport;
+    
     private readonly ISmbCredential _credential;
-    private long ReferenceCount { get; set; }
-    private bool IsDesposed { get; set; }
-    private int ThreadId { get; }
 
-    public readonly ISMBClient SmbClient;
+    private long _referenceCount = 1;
 
-    private SmbConnection(ISmbClientFactory smbClientFactory, IPAddress address, SMBTransportType transport,
-        ISmbCredential credential, int threadId, uint maxBufferSize)
+    private readonly int _threadId;
+
+    public ISMBClient SmbClient { get; }
+
+    private SmbConnection(ISmbClientFactory smbClientFactory, IPAddress address, SMBTransportType transport, ISmbCredential credential, int threadId, SmbFileSystemOptions? smbFileSystemOptions)
     {
-        SmbClient = smbClientFactory.CreateClient(maxBufferSize);
+        SmbClient = smbClientFactory.CreateClient(smbFileSystemOptions);
         _address = address;
         _transport = transport;
         _credential = credential;
-        ReferenceCount = 1;
-        ThreadId = threadId;
+        _threadId = threadId;
     }
 
     private void Connect()
     {
-        ValidateCredential(_credential);
+        if (_credential.Domain == null)
+            throw new InvalidCredentialException($"SMB credential is not valid. {nameof(_credential.Domain)} cannot be null.");
 
-        bool succeeded = SmbClient.Connect(_address, _transport);
-        if(!succeeded)
-        {
-            throw new IOException($"Unable to connect to SMB share.");
-        }
-        var status = SmbClient.Login(_credential.Domain, _credential.UserName, _credential.Password);
+        if (_credential.Username == null)
+            throw new InvalidCredentialException($"SMB credential is not valid. {nameof(_credential.Username)} cannot be null.");
 
-        status.HandleStatus();
+        if (_credential.Password == null)
+            throw new InvalidCredentialException($"SMB credential is not valid. {nameof(_credential.Password)} cannot be null.");
+
+        if(!SmbClient.Connect(_address, _transport))
+            throw new IOException("Unable to connect to SMB share.");
+
+        SmbClient.Login(_credential.Domain, _credential.Username, _credential.Password).AssertSuccess();
     }
 
-    public static SmbConnection CreateSmbConnectionForStream(ISmbClientFactory smbClientFactory,
-        IPAddress address, SMBTransportType transport, ISmbCredential credential, uint maxBufferSize)
+    public static SmbConnection CreateSmbConnectionForStream(ISmbClientFactory smbClientFactory, IPAddress address, SMBTransportType transport, ISmbCredential credential, SmbFileSystemOptions? smbFileSystemOptions)
     {
-        if (credential == null)
-        {
-            throw new ArgumentNullException(nameof(credential));
-        }
+        #if NET8_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(credential, nameof(credential));
+        #else        
+            if (credential == null)
+                throw new ArgumentNullException(nameof(credential));
+        #endif
 
         // Create new connection
-        var instance = new SmbConnection(smbClientFactory, address, transport, credential, -1,
-            maxBufferSize);
+        var instance = new SmbConnection(smbClientFactory, address, transport, credential, -1, smbFileSystemOptions);
         instance.Connect();
         return instance;
     }
 
-    public static SmbConnection CreateSmbConnection(ISmbClientFactory smbClientFactory,
-        IPAddress address, SMBTransportType transport, ISmbCredential credential, uint maxBufferSize)
+    public static SmbConnection CreateSmbConnection(ISmbClientFactory smbClientFactory, IPAddress address, SMBTransportType transport, ISmbCredential credential, SmbFileSystemOptions? smbFileSystemOptions)
     {
-        int threadId = Thread.CurrentThread.ManagedThreadId;
+        #if NET8_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(credential, nameof(credential));
+        #else        
+            if (credential == null)
+                throw new ArgumentNullException(nameof(credential));
+        #endif
 
-        if (credential == null)
-        {
-            throw new ArgumentNullException(nameof(credential));
-        }
+        int threadId = Environment.CurrentManagedThreadId;
 
         lock (s_connectionLock)
         {
-            if(!s_instances.ContainsKey(threadId))
-            {
+            if (!s_instances.ContainsKey(threadId))
                 s_instances.Add(threadId, new());
-            }
 
-            SmbConnection instance = null;
+            SmbConnection instance;
 
             if (s_instances[threadId].ContainsKey(address))
             {
                 instance = s_instances[threadId][address];
                 if (instance.SmbClient.Connect(instance._address, instance._transport))
                 {
-                    instance.ReferenceCount += 1;
+                    instance._referenceCount += 1;
                     return instance;
                 }
 
@@ -99,28 +103,27 @@ public class SmbConnection : IDisposable
             }
 
             // Create new connection
-            instance = new(smbClientFactory, address, transport, credential, threadId,
-                maxBufferSize);
+            instance = new(smbClientFactory, address, transport, credential, threadId, smbFileSystemOptions);
             instance.Connect();
             s_instances[threadId].Add(address, instance);
             return instance;
         }
     }
 
+    private bool _isDisposed;
+
     public void Dispose()
     {
         lock (s_connectionLock)
         {
-            if (IsDesposed)
-            {
+            if (_isDisposed)
                 return;
-            }
 
-            if (ReferenceCount == 1)
+            if (_referenceCount == 1)
             {
                 try
                 {
-                    SmbClient.Logoff(); //Once you logout OR disconnect you can't log back in for some reason. TODO come back to this and try to debug more.
+                    SmbClient.Logoff(); // TODO: Come back to this and try to debug more. Once you log out OR disconnect, you can't log back in for some reason.
                     SmbClient.Disconnect();
                 }
                 catch (Exception ex)
@@ -129,38 +132,24 @@ public class SmbConnection : IDisposable
                 }
                 finally
                 {
-                    if (ThreadId != -1)
+                    if (_threadId != -1)
                     {
-                        s_instances[ThreadId].Remove(_address);
-                        if (s_instances[ThreadId].Count == 0)
+                        s_instances[_threadId].Remove(_address);
+                        if (s_instances[_threadId].Count == 0)
                         {
-                            s_instances.Remove(ThreadId);
+                            s_instances.Remove(_threadId);
                         }
                     }
 
-                    IsDesposed = true;
+                    _isDisposed = true;
                 }
             }
             else
             {
-                ReferenceCount -= 1;
+                _referenceCount -= 1;
             }
         }
-    }
 
-    private void ValidateCredential(ISmbCredential credential)
-    {
-        if(credential.Domain == null)
-        {
-            throw new InvalidCredentialException($"SMB credential is not valid. {nameof(credential.Domain)} cannot be null.");
-        }
-        else if (credential.UserName == null)
-        {
-            throw new InvalidCredentialException($"SMB credential is not valid. {nameof(credential.UserName)} cannot be null.");
-        }
-        else if (credential.Password == null)
-        {
-            throw new InvalidCredentialException($"SMB credential is not valid. {nameof(credential.Password)} cannot be null.");
-        }
+        GC.SuppressFinalize(this);
     }
 }

@@ -16,8 +16,7 @@ public abstract class StreamTests
         _fileSystem = _fixture.FileSystem;
     }
 
-    [Fact]
-    [Trait("Category", "Integration")]
+    [Fact, Trait("Category", "Integration")]
     public void CheckStreamLength()
     {
         string? tempFileName = $"temp-CheckStreamLength-{DateTime.Now.ToFileTimeUtc()}.txt";
@@ -25,7 +24,7 @@ public abstract class StreamTests
         string? directory = _fileSystem.Path.Combine(_fixture.RootPath, _fixture.Directories.First());
         string? tempFilePath = _fileSystem.Path.Combine(_fixture.LocalTempDirectory, tempFileName);
         byte[]? byteArray = new byte[100];
-        using var credential = new SmbCredential(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
+        using var credential = SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
 
         if (!_fileSystem.File.Exists(tempFilePath))
         {

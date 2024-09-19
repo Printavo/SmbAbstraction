@@ -17,10 +17,10 @@ public class SmbUriFixture : TestFixture
     {
         get
         {
-            if (!string.IsNullOrEmpty(_settings.LocalTempFolder))
-                return _settings.LocalTempFolder;
+            if (string.IsNullOrWhiteSpace(_settings.LocalTempFolder))
+                throw new ArgumentException("LocalTempFolder must be set in appsettings.gitignore.json");
 
-            return RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? $@"C:\temp" : $"{Environment.GetEnvironmentVariable("HOME")}/";
+            return _settings.LocalTempFolder;
         }
     }
 

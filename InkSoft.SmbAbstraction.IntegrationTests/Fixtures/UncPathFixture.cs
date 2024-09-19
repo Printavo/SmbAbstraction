@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
 
 namespace InkSoft.SmbAbstraction.IntegrationTests.Fixtures;
 
@@ -16,16 +15,16 @@ public class UncPathFixture : TestFixture
     {
         get
         {
-            if (!string.IsNullOrEmpty(_settings.LocalTempFolder))
-                return _settings.LocalTempFolder;
+            if (string.IsNullOrWhiteSpace(_settings.LocalTempFolder))
+                throw new ArgumentException("LocalTempFolder must be set in appsettings.gitignore.json");
 
-            return RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? $@"C:\temp" : $"{Environment.GetEnvironmentVariable("HOME")}/";
+            return _settings.LocalTempFolder;
         }
     }
 
     public override ShareCredentials ShareCredentials => _settings.ShareCredentials;
 
-    public override string ShareName => RootPath.ShareName(); 
+    public override string ShareName => RootPath.ShareName();
     public override string RootPath => _settings.Shares.First().GetRootPath(PathType.UncPath);
 
     public override List<string> Files => _settings.Shares.First().Files;

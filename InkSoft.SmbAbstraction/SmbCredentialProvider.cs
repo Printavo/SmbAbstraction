@@ -5,41 +5,43 @@ namespace InkSoft.SmbAbstraction;
 
 public class SmbCredentialProvider : ISmbCredentialProvider
 {
-    List<ISmbCredential> _credentials = [];
+    private readonly List<ISmbCredential> _credentials = [];
+    
     private static readonly object s_credentialsLock = new();
 
-    public ISmbCredential GetSmbCredential(string path)
+    /// <inheritdoc/>
+    public ISmbCredential? GetSmbCredential(string path)
     {
-        lock(s_credentialsLock)
+        lock (s_credentialsLock)
         {
             string? host = path.Hostname();
             string? shareName = path.ShareName();
-
-            var credential = _credentials.Where(q => q.Host == host && q.ShareName == shareName).FirstOrDefault();
-            if(credential != null)
-            {
-                return credential;
-            }
-            else
-            {
-                return null;
-            }
+            return _credentials.FirstOrDefault(c => c.Host == host && c.ShareName == shareName) ?? _credentials.FirstOrDefault(c => c.Host == host && c.ShareName == null);
         }
     }
 
-    public IEnumerable<ISmbCredential> GetSmbCredentials() => _credentials;
+    /// <inheritdoc/>
+    public ISmbCredential[] GetSmbCredentials()
+    {
+        lock (s_credentialsLock)
+        {
+            return _credentials.ToArray();
+        }
+    }
 
+    /// <inheritdoc/>
     public void AddSmbCredential(ISmbCredential credential)
     {
-        lock(s_credentialsLock)
+        lock (s_credentialsLock)
         {
             _credentials.Add(credential);
         }
     }
 
+    /// <inheritdoc/>
     public void RemoveSmbCredential(ISmbCredential credential)
     {
-        lock(s_credentialsLock)
+        lock (s_credentialsLock)
         {
             _credentials.Remove(credential);
         }

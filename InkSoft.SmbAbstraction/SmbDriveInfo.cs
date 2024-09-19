@@ -6,7 +6,7 @@ namespace InkSoft.SmbAbstraction;
 
 public class SmbDriveInfo : IDriveInfo
 {
-    private SmbDirectoryInfoFactory DirInfoFactory => FileSystem.DirectoryInfo as SmbDirectoryInfoFactory;
+    private SmbDirectoryInfoFactory DirInfoFactory => (SmbDirectoryInfoFactory)FileSystem.DirectoryInfo;
     private readonly string _volumeLabel;
 
     public SmbDriveInfo(string path, IFileSystem fileSystem, SmbFileSystemInformation smbFileSystemInformation, ISmbCredential credential)
@@ -28,6 +28,7 @@ public class SmbDriveInfo : IDriveInfo
         _volumeLabel = smbFileSystemInformation.VolumeInformation.VolumeLabel;
     }
 
+    /// <inheritdoc />
     public IFileSystem FileSystem { get; }
 
     public long AvailableFreeSpace { get; }
