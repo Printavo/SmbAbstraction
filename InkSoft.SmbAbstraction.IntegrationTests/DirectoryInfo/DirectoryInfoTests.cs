@@ -19,22 +19,20 @@ public abstract class DirectoryInfoTests
     }
 
 
-    [Fact]
-    [Trait("Category", "Integration")]
+    [Fact, Trait("Category", "Integration")]
     public void CanCreateNewDirectoryInfo()
     {
         var credentials = _fixture.ShareCredentials;
         string? directory = _fileSystem.Path.Combine(_fixture.RootPath, _fixture.Directories.First());
 
-        using var credential = new SmbCredential(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
+        using var credential = SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
 
         var directoryInfo = _fileSystem.DirectoryInfo.New(directory);
 
         Assert.NotNull(directoryInfo);
     }
 
-    [Fact]
-    [Trait("Category", "Integration")]
+    [Fact, Trait("Category", "Integration")]
     public void CanCreateNewDirectoryInfo_WithTrailingSeparator()
     {
         var credentials = _fixture.ShareCredentials;
@@ -42,22 +40,21 @@ public abstract class DirectoryInfoTests
         char trailingSeparator = (_fixture.PathType == PathType.SmbUri || !RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) ? '/' : '\\';
         string? directory = _fileSystem.Path.Combine(_fixture.RootPath, _fixture.Directories.First()) + trailingSeparator;
 
-        using var credential = new SmbCredential(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
+        using var credential = SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
 
         var directoryInfo = _fileSystem.DirectoryInfo.New(directory);
 
         Assert.NotNull(directoryInfo);
     }
 
-    [Fact]
-    [Trait("Category", "Integration")]
+    [Fact, Trait("Category", "Integration")]
     public void CheckMoveDirectory()
     {
         var credentials = _fixture.ShareCredentials;
         string? directory = _fileSystem.Path.Combine(_fixture.RootPath, _fixture.Directories.First());
         string? newDirectory = _fileSystem.Path.Combine(directory, $"{DateTime.Now.ToFileTimeUtc()}");
 
-        using var credential = new SmbCredential(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
+        using var credential = SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
 
         string? createDirectoryPath = _fileSystem.Path.Combine(_fixture.RootPath, $"test-move-local-directory-{DateTime.Now.ToFileTimeUtc()}");
         var directoryInfo = _fileSystem.Directory.CreateDirectory(createDirectoryPath);
@@ -69,8 +66,7 @@ public abstract class DirectoryInfoTests
         _fileSystem.Directory.Delete(newDirectory);
     }
 
-    [Fact]
-    [Trait("Category", "Integration")]
+    [Fact, Trait("Category", "Integration")]
     public void CheckMoveDirectory_WithTrailingSeparator()
     {
         var credentials = _fixture.ShareCredentials;
@@ -79,7 +75,7 @@ public abstract class DirectoryInfoTests
         string? directory = _fileSystem.Path.Combine(_fixture.RootPath, _fixture.Directories.First()) + trailingSeparator;
         string? newDirectory = _fileSystem.Path.Combine(directory, $"{DateTime.Now.ToFileTimeUtc()}") + trailingSeparator;
 
-        using var credential = new SmbCredential(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
+        using var credential = SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider);
 
         string? createDirectoryPath = _fileSystem.Path.Combine(_fixture.RootPath, $"test-move-local-directory-{DateTime.Now.ToFileTimeUtc()}");
         var directoryInfo = _fileSystem.Directory.CreateDirectory(createDirectoryPath);

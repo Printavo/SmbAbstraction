@@ -81,13 +81,13 @@ public class SmbFileInfo(IFileSystem fileSystem, string path) : FileInfoWrapper(
     public override bool IsReadOnly => _isReadOnly;
     public override long Length => _length;
     public override System.IO.FileAttributes Attributes => _attributes;
-    public override DateTime CreationTime { get => _creationTime; set => _creationTime = value; }
+    public sealed override DateTime CreationTime { get => _creationTime; set => _creationTime = value; }
     public override DateTime CreationTimeUtc { get => _creationTimeUtc; set => _creationTimeUtc = value; }
     public override bool Exists => _exists;
     public override string FullName => _fullName;
-    public override DateTime LastAccessTime { get => _lastAccessTime; set => _lastAccessTime = value; }
+    public sealed override DateTime LastAccessTime { get => _lastAccessTime; set => _lastAccessTime = value; }
     public override DateTime LastAccessTimeUtc { get => _lastAccessTimeUtc; set => _lastAccessTimeUtc = value; }
-    public override DateTime LastWriteTime { get => _lastWriteTime; set => _lastWriteTime = value; }
+    public sealed override DateTime LastWriteTime { get => _lastWriteTime; set => _lastWriteTime = value; }
     public override DateTime LastWriteTimeUtc { get => _lastWriteTimeUtc; set => _lastWriteTimeUtc = value; }
 
     public override StreamWriter AppendText() => File.AppendText(FullName);
@@ -228,7 +228,7 @@ public class SmbFileInfo(IFileSystem fileSystem, string path) : FileInfoWrapper(
 
         if(destinationBackupFilePath == string.Empty)
         {
-            ///https://docs.microsoft.com/en-us/dotnet/api/system.io.fileinfo.replace?view=netcore-3.1
+            // https://docs.microsoft.com/en-us/dotnet/api/system.io.fileinfo.replace?view=netcore-3.1
             throw new ArgumentNullException(nameof(destinationBackupFilePath), "Destination backup path cannot be empty. Pass null if you do not want to create backup of file being replaced.");
         }
 
@@ -237,13 +237,11 @@ public class SmbFileInfo(IFileSystem fileSystem, string path) : FileInfoWrapper(
         if (!path.IsSharePath() && !destinationFilePath.IsSharePath())
             return base.Replace(destinationFilePath, destinationBackupFilePath, ignoreMetadataErrors);
 
-        // Check if destination file exists, throw if doesn't
+        // Check if destination file exists. Throw if it doesn't.
         if (!File.Exists(destinationFilePath))
             throw new FileNotFoundException($"Destination file {destinationFilePath} not found.");
 
-        // If backupPath is specified 
-        // delete the backupfile if it exits
-        // then copy destinatonFile to backupPath
+        // If backupPath is specified, delete the backup file if it exits. Then, copy destinationFile to backupPath.
         if (!string.IsNullOrEmpty(destinationBackupFilePath))
         {
             if(File.Exists(destinationBackupFilePath))

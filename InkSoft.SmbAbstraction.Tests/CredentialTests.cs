@@ -9,16 +9,12 @@ public class CredentialTests
     private readonly string _userName = "user";
     private readonly string _path = "\\\\host\\sharename";
 
-    public CredentialTests()
-    {
-    }
-
     [Fact]
     public void SetDomainNameFromUserNameIfNull()
     {
-        var credential = new SmbCredential(null, $"{_domain}\\{_userName}", "password", _path, A.Fake<ISmbCredentialProvider>()); 
+        var credential = SmbCredential.AddToProvider(null, $"{_domain}\\{_userName}", "password", _path, A.Fake<ISmbCredentialProvider>()); 
         Assert.Equal(_domain, credential.Domain);
-        Assert.Equal(_userName, credential.UserName);
+        Assert.Equal(_userName, credential.Username);
     }
 
     [Fact]
@@ -28,8 +24,8 @@ public class CredentialTests
         string? userName = "user";
         string? combinedUserName = $"{domain}\\{userName}";
 
-        var credential = new SmbCredential(domain, combinedUserName, "password", _path, A.Fake<ISmbCredentialProvider>()); 
+        var credential = SmbCredential.AddToProvider(domain, combinedUserName, "password", _path, A.Fake<ISmbCredentialProvider>()); 
         Assert.Equal(domain, credential.Domain);
-        Assert.Equal(combinedUserName, credential.UserName);
+        Assert.Equal(combinedUserName, credential.Username);
     }
 }

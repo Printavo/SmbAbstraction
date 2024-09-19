@@ -9,14 +9,9 @@ internal static class FileStoreUtilities
         if (fileStore == null || fileHandle == null)
             return;
 
-        // TODO: In the original library, this wasn't necessary. What's up here?
-        try
-        {
-            fileStore.CloseFile(fileHandle);
-        }
-        catch
-        {
-        }
+        // TODO: In the original library, try/catch wasn't necessary. What's up here?
+        try { fileStore.CloseFile(fileHandle); } catch {}
+
         fileHandle = null;
     }
 }

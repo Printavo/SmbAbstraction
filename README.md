@@ -1,124 +1,127 @@
 # SmbAbstraction
 
-This project is a fork of https://github.com/jordanlytle/SmbAbstraction with a few key differences: 1) It uses the original SMBLibrary as opposed to SMBLibraryLite, 2) It conforms to newer versions of https://github.com/TestableIO/System.IO.Abstractions interfaces, and 3) it also targets .Net Standard 2.0. This library implements the System.IO.Abstractions interfaces for interacting with the filesystem and adds support for interacting with UNC or SMB paths. The intent is to provide an intuitive way to operate against SMB/UNC shares along with being able to operate on UNC shares from Linux/OSX. The project is curretly a work in progress and is not guaranteed to work for your specific application.
+This project is a fork of https://github.com/jordanlytle/SmbAbstraction with a few key differences: 1) It uses the original SMBLibrary as opposed to SMBLibraryLite, 2) It conforms to newer versions of https://github.com/TestableIO/System.IO.Abstractions interfaces, and 3) it also targets .Net Standard 2.0. This library implements the System.IO.Abstractions interfaces for interacting with the filesystem and adds support for interacting with UNC or SMB paths. The intent is to provide an intuitive way to operate against SMB/UNC shares along with being able to operate on UNC shares from Linux/OSX or even Windows clients outside of AD without having to use 'PInvoke' to wrap file share access. This project isn't popular (yet?) and is not guaranteed to work for your specific application.
 
 # Usage
 
 ## Examples
 
-Example projects are available to view in `SmbAbstraction.Examples`
+Example projects are available to view in `InkSoft.SmbAbstraction.Examples`
+
+## Basic (Program.cs top level statement file)
+```CSharp
+using InkSoft.SmbAbstraction;
+using System.IO.Abstractions;
+
+const string c_domain = "domain";
+const string c_username = "username";
+const string c_password = "password";
+const string? c_sharePath = @"\\host\ShareName"; // e.g. \\host\ShareName or smb://host/sharename
+
+ISmbCredentialProvider credentialProvider = new SmbCredentialProvider();
+ISmbClientFactory clientFactory = new Smb2ClientFactory();
+IFileSystem fileSystem = new SmbFileSystem(clientFactory, credentialProvider, null, null);
+string path = fileSystem.Path.Combine(c_sharePath, "test.txt");
+
+// SMBCredential will parse the share path from path
+using var credential = SmbCredential.AddToProvider(c_domain, c_username, c_password, c_sharePath, credentialProvider);
+
+// FileInfo
+var fileInfo = fileSystem.FileInfo.New(path);
+
+// DirectoryInfo
+var directoryInfo = fileSystem.DirectoryInfo.New(path);
+
+// Stream
+using (var stream = fileSystem.File.Open(path, System.IO.FileMode.Open))
+{
+    // Do stuff...
+}
+```
 
 ## Dependency Injection
 
 ### Registering Services
 ```CSharp
-public static IHostBuilder CreateHostBuilder(string[] args) =>
-    Host.CreateDefaultBuilder(args)
-        .ConfigureLogging(logging =>
-        {
-            logging.AddConsole();
-            logging.AddDebug();
-        })
-        .ConfigureServices((hostContext, services) =>
-        {
-            services.AddSingleton<ISMBClientFactory>(new SMB2ClientFactory());
-            services.AddSingleton<ISMBCredentialProvider>(new SMBCredentialProvider());
-
-                    
-            var serviceCollection = services.BuildServiceProvider();
-
-            var clientFactory = serviceCollection.GetRequiredService<ISMBClientFactory>();
-            var credentialProvider = serviceCollection.GetRequiredService<ISMBCredentialProvider>();
-            var loggerFactory = serviceCollection.GetRequiredService<ILoggerFactory>(); //optional
-
-            services.AddSingleton<IFileSystem>(new SMBFileSystem(clientFactory, credentialProvider, 65536u, loggerFactory));
-        });
+public static IHostBuilder CreateHostBuilder(string[] args) => Host.CreateDefaultBuilder(args)
+    .ConfigureLogging(logging => { logging.AddConsole(); logging.AddDebug(); })
+    .ConfigureServices((hostContext, services) => services
+        .AddSingleton<ISmbCredentialProvider>(p => new SmbCredentialProvider())
+        // If you don't want to use SmbFileSystem as the default IFileSystem, you can use something like following line instead for specifically requesting it via [FromKeyedServices(nameof(SmbFileSystem))]
+        // without using the SmbFileSystem type. This makes it such that you can unit-test code with MockFileSystem by registering MockFileSystem to the keyed service instead of an actual SmbFileSystem.
+        .AddKeyedSingleton<IFileSystem>(nameof(SmbFileSystem), (p, _) => new SmbFileSystem(new Smb2ClientFactory(), p.GetRequiredService<ISmbCredentialProvider>(), null, p.GetRequiredService<ILoggerFactory>()))
+        // Otherwise, this makes SmbFileSystem the default file system:
+        .AddSingleton<IFileSystem>(p => new SmbFileSystem(
+            new Smb2ClientFactory(),
+            p.GetRequiredService<ISmbCredentialProvider>(),
+            null,
+            p.GetRequiredService<ILoggerFactory>()
+        )));
+}
 ```
 
 ### Making calls
-
-#### With IDisposable 
 ```CSharp
-public void FileOpsInContext()
-{
-    var path = "valid_unc/smb_path";
-    using (var credential = new SMBCredential("domain", "username", "password", path, _credentialProvider))
+using InkSoft.SmbAbstraction;
+using Microsoft.Extensions.DependencyInjection;
+using System.IO.Abstractions;
+using System.Net;
+
+public class NetworkShareService(
+    [FromKeyedServices(nameof(SmbFileSystem))] IFileSystem fileSystem,
+    ISmbCredentialProvider credentialProvider
+){
+    private const string c_sharePath = @"\\host\ShareName"; // e.g. \\host\ShareName or smb://host/sharename
+    
+    private string Path => fileSystem.Path.Combine(c_sharePath, "test.txt");
+
+    /// <summary>
+    /// With IDisposable
+    /// </summary>
+    public void FileOpsInContext()
     {
-        //FileInfo
-        //_fileSystem.FileInfo.FromFileName(path)
+        // SMBCredential will parse the share path from path. These credentials are removed from the cache when the using block is exited.
+        using var credential = SmbCredential.AddToProvider("domain", "username", "password", c_sharePath, credentialProvider);
+        
+        // FileInfo
+        var fileInfo = fileSystem.FileInfo.New(Path);
 
-        //DirectoryInfo
-        //_fileSystem.DirectoryInfo.FromDirectoryName(path)
+        // DirectoryInfo
+        var directoryInfo = fileSystem.DirectoryInfo.New(c_sharePath);
 
-        //Stream
-        //using (var stream = _fileSystem.File.Open(path, System.IO.FileMode.Open))
-        //{
-                    
-        //}
+        // Stream
+        using (var stream = fileSystem.File.Open(Path, System.IO.FileMode.Open))
+        {
+            // Do stuff...
+        }
     }
-}
-```
 
-#### With Stored Credentials 
-You can add/cache credentials for a share so that you can operate them from raw IFileSystem calls
-```CSharp
-public void StoreCredentialsForShare(NetworkCredential credential)
-{
-    var domain = credential.Domain;
-    var username = credential.UserName;
-    var password = credential.Password;
+    /// <summary>
+    /// With Stored Credentials
+    /// </summary>
+    public void StoreCredentialsForShare(NetworkCredential credential)
+    {
+        string? domain = credential.Domain;
+        string? username = credential.UserName;
+        string? password = credential.Password;
 
-    var sharePath = "valid_unc/smb_sharepath"; //ie. \\host\sharename or smb://host/sharename
+        // You can add/cache credentials for a share by using the credentials outside a using block, perhaps here, at app startup, or elsewhere, by specifying false for the last param.
+        SmbCredential.AddToProvider(domain, username, password, c_sharePath, credentialProvider, false);
+    }
 
-    _credentialProvider.AddSMBCredential(new SMBCredential(domain, username, password, sharePath, _credentialProvider));
-}
+    public void UseStoredCredentialsForFileOp()
+    {
+        // FileInfo
+        var fileInfo = fileSystem.FileInfo.New(Path);
 
-public void UseStoredCredentialsForFileOp()
-{
-    //FileInfo
-    //_fileSystem.FileInfo.FromFileName(path)
+        // DirectoryInfo
+        var directoryInfo = fileSystem.DirectoryInfo.New(c_sharePath);
 
-    //DirectoryInfo
-    //_fileSystem.DirectoryInfo.FromDirectoryName(path)
-
-    //Stream
-    //using (var stream = _fileSystem.File.Open(path, System.IO.FileMode.Open))
-    //{
-
-    //}
-}
-```
-
-## Raw
-
-```CSharp
- static void Main(string[] args)
-{
-    var domain = "domain";
-    var username = "username";
-    var password = "password";
-
-    var sharePath = "valid_unc/smb_share_path"; //ie. \\host\sharename or smb://host/sharename
-
-    ISMBCredentialProvider credentialProvider = new SMBCredentialProvider();
-    ISMBClientFactory clientFactory = new SMB2ClientFactory();
-    IFileSystem fileSystem = new SMBFileSystem(clientFactory, credentialProvider, 65536u);
-
-    //var path = _fileSystem.Path.Combine(sharePath, "test.txt");
-
-    using (var credential = new SMBCredential(domain, username, password, sharePath, credentialProvider)) // NOTE: You can interchange path with sharePath here. 
-    {                                                                                                     // SMBCredential will parse the share path from path
-        //FileInfo
-        //_fileSystem.FileInfo.FromFileName(path)
-
-        //DirectoryInfo
-        //_fileSystem.DirectoryInfo.FromDirectoryName(path)
-
-        //Stream
-        //using (var stream = _fileSystem.File.Open(path, System.IO.FileMode.Open))
-        //{
-
-        //}
+        // Stream
+        using (var stream = fileSystem.File.Open(Path, System.IO.FileMode.Open))
+        {
+            // Do stuff...
+        }
     }
 }
 ```

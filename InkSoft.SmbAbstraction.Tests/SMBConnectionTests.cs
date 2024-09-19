@@ -8,28 +8,25 @@ namespace InkSoft.SmbAbstraction.Tests.Path;
 
 public class SmbConnectionTests
 {
-    public SmbConnectionTests()
-    {
-    }
-
     [Fact]
     public void ThrowExceptionForInvalidCredential()
     {
-        string? domain = "domain";
-        string? userName = "user";
-        string? password = "password";
-        string? path = "\\\\host\\sharename";
+        const string? c_domain = "domain";
+        const string? c_userName = "user";
+        const string? c_password = "password";
+        const string? c_path = "\\\\host\\sharename";
         var ipAddress = IPAddress.Parse("127.0.0.1");
 
-        var credentials = new List<SmbCredential>() {
-            new(null, userName, password, path, A.Fake<ISmbCredentialProvider>()),
-            new(domain, null, password, path, A.Fake<ISmbCredentialProvider>()),
-            new(domain, userName, null, path, A.Fake<ISmbCredentialProvider>())
+        var credentials = new List<SmbCredential>
+        {
+            SmbCredential.AddToProvider(null, c_userName, c_password, c_path, A.Fake<ISmbCredentialProvider>()),
+            SmbCredential.AddToProvider(c_domain, null, c_password, c_path, A.Fake<ISmbCredentialProvider>()),
+            SmbCredential.AddToProvider(c_domain, c_userName, null, c_path, A.Fake<ISmbCredentialProvider>())
         };
 
         foreach(var credential in credentials)
         {
-            Assert.Throws<InvalidCredentialException>(() => { SmbConnection.CreateSmbConnection(A.Fake<ISmbClientFactory>(), ipAddress, SMBTransportType.DirectTCPTransport, credential, 0); });
+            Assert.Throws<InvalidCredentialException>(() => { SmbConnection.CreateSmbConnection(A.Fake<ISmbClientFactory>(), ipAddress, SMBTransportType.DirectTCPTransport, credential, new(){MaxBufferSize = 0}); });
         }
     }
 }

@@ -10,21 +10,19 @@ namespace InkSoft.SmbAbstraction;
 
 public class SmbFileInfoFactory(
     IFileSystem fileSystem,
-    ISmbCredentialProvider credentialProvider,
     ISmbClientFactory smbClientFactory,
-    uint maxBufferSize,
-    ILoggerFactory? loggerFactory = null
-) : IFileInfoFactory
+    ISmbCredentialProvider credentialProvider,
+    SmbFileSystemOptions? smbFileSystemOptions,
+    ILoggerFactory? loggerFactory = null) : IFileInfoFactory
 {
+    /// <inheritdoc cref="SmbFileSystem"/>
     public IFileSystem FileSystem => fileSystem;
 
     private readonly ILogger<SmbFileInfoFactory>? _logger = loggerFactory?.CreateLogger<SmbFileInfoFactory>();
     
-    private SmbDirectoryInfoFactory? DirInfoFactory => fileSystem.DirectoryInfo as SmbDirectoryInfoFactory;
-
     public SMBTransportType Transport { get; set; } = SMBTransportType.DirectTCPTransport;
 
-    public IFileInfo New(string fileName) => fileName.IsSharePath() ? New(fileName, null) : new SmbFileInfo(fileSystem, new FileInfo(fileName));
+    public IFileInfo New(string fileName) => fileName.IsSharePath() ? New(fileName, null) : new SmbFileInfo(FileSystem, new FileInfo(fileName));
 
     internal IFileInfo New(string path, ISmbCredential? credential)
     {
@@ -48,9 +46,9 @@ public class SmbFileInfoFactory(
             string? shareName = path.ShareName();
             string? relativePath = path.RelativeSharePath();
             _logger?.LogTrace("Trying FromFileName {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
-            using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, maxBufferSize);
+            using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, smbFileSystemOptions);
             fileStore = connection.SmbClient.TreeConnect(shareName, out var status);
-            status.HandleStatus();
+            status.AssertSuccess();
 
             const AccessMask c_accessMask = AccessMask.SYNCHRONIZE | AccessMask.GENERIC_READ;
             const ShareAccess c_shareAccess = ShareAccess.Read;
@@ -59,14 +57,14 @@ public class SmbFileInfoFactory(
 
             status = fileStore.CreateFile(out handle, out _, relativePath, c_accessMask, 0, c_shareAccess, c_disposition, c_createOptions, null);
 
-            status.HandleStatus();
+            status.AssertSuccess();
             status = fileStore.GetFileInformation(out var fileBasicInfo, handle, FileInformationClass.FileBasicInformation);
-            status.HandleStatus();
+            status.AssertSuccess();
             status = fileStore.GetFileInformation(out var fileStandardInfo, handle, FileInformationClass.FileStandardInformation);
-            status.HandleStatus();
+            status.AssertSuccess();
             FileStoreUtilities.CloseFile(fileStore, ref handle);
 
-            return new SmbFileInfo(fileSystem, path, (FileBasicInformation)fileBasicInfo, (FileStandardInformation)fileStandardInfo, credential);
+            return new SmbFileInfo(FileSystem, path, (FileBasicInformation)fileBasicInfo, (FileStandardInformation)fileStandardInfo, credential);
         }
         catch (Exception ex)
         {
@@ -98,20 +96,20 @@ public class SmbFileInfoFactory(
             string? shareName = path.ShareName();
             string? relativePath = path.RelativeSharePath();
             _logger?.LogTrace("Trying to SaveFileInfo {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
-            using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, maxBufferSize);
+            using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, smbFileSystemOptions);
             fileStore = connection.SmbClient.TreeConnect(shareName, out var status);
-            status.HandleStatus();
+            status.AssertSuccess();
 
             const AccessMask c_accessMask = AccessMask.SYNCHRONIZE | AccessMask.GENERIC_WRITE;
             const ShareAccess c_shareAccess = ShareAccess.Read;
             const CreateDisposition c_disposition = CreateDisposition.FILE_OPEN;
             const CreateOptions c_createOptions = CreateOptions.FILE_SYNCHRONOUS_IO_NONALERT | CreateOptions.FILE_NON_DIRECTORY_FILE;
 
-            status = fileStore.CreateFile(out handle, out var fileStatus, relativePath, c_accessMask, 0, c_shareAccess, c_disposition, c_createOptions, null);
-            status.HandleStatus();
+            status = fileStore.CreateFile(out handle, out _, relativePath, c_accessMask, 0, c_shareAccess, c_disposition, c_createOptions, null);
+            status.AssertSuccess();
             var smbFileInfo = fileInfo.ToSmbFileInformation(credential);
             status = fileStore.SetFileInformation(handle, smbFileInfo);
-            status.HandleStatus();
+            status.AssertSuccess();
         }
         catch (Exception ex)
         {

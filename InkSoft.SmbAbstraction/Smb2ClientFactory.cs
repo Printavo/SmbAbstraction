@@ -4,5 +4,5 @@ namespace InkSoft.SmbAbstraction;
 
 public class Smb2ClientFactory : ISmbClientFactory
 {
-    public ISMBClient CreateClient(uint maxBufferSize) => new SMB2Client();
+    public ISMBClient CreateClient(SmbFileSystemOptions? smbFileSystemOptions) => new SMB2Client();
 }

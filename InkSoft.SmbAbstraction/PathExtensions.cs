@@ -6,16 +6,11 @@ namespace InkSoft.SmbAbstraction;
 
 public static class PathExtensions
 {
-    static readonly string[] s_pathSeparators = [@"\", "/"];
-
     public static bool IsValidSharePath(this string path)
     {
         try
         {
-            var uri = new Uri(path);
-            bool valid = uri.Segments.Length >= 2;
-
-            return valid && path.IsSharePath();
+            return new Uri(path).Segments.Length >= 2 && path.IsSharePath();
         }
         catch
         {
@@ -40,8 +35,7 @@ public static class PathExtensions
     {
         try
         {
-            var uri = new Uri(path);
-            return uri.Scheme.Equals("smb");
+            return new Uri(path).Scheme.Equals("smb");
         }
         catch
         {
@@ -53,46 +47,46 @@ public static class PathExtensions
     {
         try
         {
-            var uri = new Uri(path);
-            return uri.IsUnc;
+            return new Uri(path).IsUnc;
         }
         catch
         {
             return false;
         }
     }
+}
 
+/// <summary>
+/// It's debatable if consumers of this library would like to see these extension methods via Intellisense for strings.
+/// </summary>
+internal static class PathExtensionsInternal
+{
     public static string BuildSharePath(this string path, string shareName) => !new Uri(path).IsUnc ? $"smb://{path.Hostname()}/{shareName}" : $@"\\{path.Hostname()}\{shareName}";
 
     public static string Hostname(this string path)
     {
         try 
         {
-            var uri = new Uri(path);
-            return uri.Host;
+            return new Uri(path).Host;
         }
-        catch(Exception ex)
+        catch (Exception ex)
         {
-            throw new($"Unable to parse hostname for path: {path}", ex);
+            throw new ArgumentException($"Unable to parse hostname for path: {path}", nameof(path), ex);
         }
     }
 
-    public static bool TryResolveHostnameFromPath(this string path, out IPAddress ipAddress) => path.Hostname().TryResolveHostname(out ipAddress);
-
-    public static bool TryResolveHostname(this string hostnameOrAddress, out IPAddress ipAddress)
+    public static bool TryResolveHostnameFromPath(this string path, out IPAddress ipAddress)
     {
-        bool parsedIpAddress = IPAddress.TryParse(hostnameOrAddress, out ipAddress);
+        string host = path.Hostname();
+        bool parsedIpAddress = IPAddress.TryParse(host, out ipAddress);
 
         if (parsedIpAddress)
-        {
             return true;
-        }
 
         try
         {
-            var hostEntry = Dns.GetHostEntry(hostnameOrAddress);
+            var hostEntry = Dns.GetHostEntry(host);
             ipAddress = hostEntry.AddressList.First(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
-
             return true;
         }
         catch
@@ -102,18 +96,20 @@ public static class PathExtensions
         }
     }
 
-    public static string ShareName(this string path)
+    /// <summary>
+    /// The first path segment after the host name. Returns null if the path contains a host only.
+    /// </summary>
+    public static string? ShareName(this string path)
     {
         var uri = new Uri(path);
-        string? shareName = uri.Segments[1].RemoveAnySeparators();
-
-        return shareName;
+        
+        // First segment is root "/", so share names are the second segment.
+        return uri.Segments.Length > 1 ? uri.Segments[1].RemoveAnySeparators() : null;
     }
 
     public static string SharePath(this string path)
     {
         var uri = new Uri(path);
-
         string sharePath = "";
         if (uri.Scheme.Equals("smb"))
             sharePath = $"{uri.Scheme}://{uri.Host}/{uri.Segments[1].RemoveAnySeparators()}";
@@ -123,12 +119,10 @@ public static class PathExtensions
         return sharePath;
     }
 
-    public static string RelativeSharePath(this string path)
-    {
-        string? relativePath = path.RemoveShareNameFromPath().RemoveLeadingAndTrailingSeparators().Replace("/", @"\");
-
-        return relativePath;
-    }
+    public static string RelativeSharePath(this string path) => path
+        .Replace(path.SharePath(), "", StringComparison.InvariantCultureIgnoreCase)
+        .RemoveLeadingAndTrailingSeparators()
+        .Replace("/", @"\");
 
     public static string GetParentPath(this string path)
     {
@@ -138,56 +132,33 @@ public static class PathExtensions
         return pathString.RemoveTrailingSeparators();
     }
 
-    public static string GetLastPathSegment(this string path)
+    /// <summary>
+    /// Standardizes smb:// paths.
+    /// </summary>
+    public static string ForwardSlash(this string path) => path.Replace('\\', '/');
+
+    /// <summary>
+    /// Standardizes UNC \\ paths.
+    /// </summary>
+    public static string BackSlash(this string path) => path.Replace('/', '\\');
+
+    public static string GetLastPathSegment(this string path) => Uri.UnescapeDataString(new Uri(path).Segments.Last());
+
+    private static readonly char[] s_pathSeparators = ['\\', '/'];
+
+    public static string RemoveLeadingAndTrailingSeparators(this string path) => path.Trim(s_pathSeparators);
+
+    public static string RemoveTrailingSeparators(this string path) => path.TrimEnd(s_pathSeparators);
+
+    public static string StandardizeSeparators(this string path)
     {
-        var uri = new Uri(path);
-        return Uri.UnescapeDataString(uri.Segments.Last());
+        if (path.IsUncPath())
+            return path.BackSlash();
+        
+        return path.IsSmbUri() ? path.ForwardSlash() : path;
     }
 
-    public static string RemoveLeadingAndTrailingSeparators(this string input) => input.RemoveLeadingSeparators().RemoveTrailingSeparators();
-
-    public static string RemoveLeadingSeparators(this string input)
-    {
-        foreach (string? pathSeparator in s_pathSeparators)
-        {
-            if (input.StartsWith(pathSeparator))
-            {
-                input = input.Remove(0, 1);
-            }
-        }
-
-        return input;
-    }
-
-    public static string RemoveTrailingSeparators(this string input)
-    {
-        foreach (string? pathSeperator in s_pathSeparators)
-        {
-            if (input.EndsWith(pathSeperator))
-            {
-                input = input.Remove(input.LastIndexOf(pathSeperator), 1);
-            }
-        }
-
-        return input;
-    }
-
-    private static string RemoveAnySeparators(this string input)
-    {
-        foreach (string? pathSeparator in s_pathSeparators)
-        {
-            input = input.Replace(pathSeparator, "");
-        }
-
-        return input;
-    }
-
-    private static string RemoveShareNameFromPath(this string input)
-    {
-        string? sharePath = input.SharePath();
-
-        input = input.Replace(sharePath, "", StringComparison.InvariantCultureIgnoreCase);
-
-        return input;
-    }
+    private static readonly string[] s_stringPathSeparators = [@"\", "/"];
+    
+    private static string RemoveAnySeparators(this string path) => s_stringPathSeparators.Aggregate(path, (current, pathSeparator) => current.Replace(pathSeparator, ""));
 }

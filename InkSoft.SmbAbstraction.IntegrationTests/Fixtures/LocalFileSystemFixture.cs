@@ -15,27 +15,16 @@ public class LocalFileSystemFixture : TestFixture
     {
         get
         {
-            if (!string.IsNullOrEmpty(_settings.LocalTempFolder))
-            {
-                return _settings.LocalTempFolder;
-            }
+            if (string.IsNullOrWhiteSpace(_settings.LocalTempFolder))
+                throw new ArgumentException("LocalTempFolder must be set in appsettings.gitignore.json");
 
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                System.IO.Directory.CreateDirectory($@"C:\temp\tests");
-                return $@"C:\temp\tests";
-            }
-            else
-            {
-                System.IO.Directory.CreateDirectory($@"{Environment.GetEnvironmentVariable("HOME")}/temp/tests");
-                return $@"{Environment.GetEnvironmentVariable("HOME")}/temp/tests";
-            }
+            return _settings.LocalTempFolder;
         }
     }
 
     public override ShareCredentials ShareCredentials => _settings.ShareCredentials;
     public override string ShareName => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? System.IO.Path.GetPathRoot(RootPath) : "/";
-    public override string RootPath => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? $@"C:\temp" : $@"{Environment.GetEnvironmentVariable("HOME")}/temp";
+    public override string RootPath => FileSystem.Path.Combine(LocalTempDirectory, "testRoot");
 
     public override List<string> Files
     {
