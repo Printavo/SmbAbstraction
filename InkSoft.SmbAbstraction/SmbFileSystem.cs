@@ -23,6 +23,7 @@ public class SmbFileSystem : FileSystemBase
         DriveInfo = new SmbDriveInfoFactory(this, smbClientFactory, credentialProvider, smbFileSystemOptions, loggerFactory);
         DirectoryInfo = new SmbDirectoryInfoFactory(this, smbClientFactory, credentialProvider, smbFileSystemOptions, loggerFactory);
         FileInfo = new SmbFileInfoFactory(this, smbClientFactory, credentialProvider, smbFileSystemOptions, loggerFactory);
+        FileVersionInfo = new SmbFileVersionInfoFactory(this);
         Path = new SmbPath(this);
         File = new SmbFile(this, smbClientFactory, credentialProvider, smbFileSystemOptions, loggerFactory);
         Directory = new SmbDirectory(this, smbClientFactory, credentialProvider, smbFileSystemOptions, loggerFactory);
@@ -43,6 +44,9 @@ public class SmbFileSystem : FileSystemBase
 
     /// <inheritdoc cref="SmbFileInfoFactory"/>
     public override IFileInfoFactory FileInfo { get; }
+
+    /// <inheritdoc cref="SmbFileVersionInfoFactory"/>
+    public override IFileVersionInfoFactory FileVersionInfo { get; }
 
     /// <inheritdoc cref="SmbPath"/>
     public override IPath Path { get; }
