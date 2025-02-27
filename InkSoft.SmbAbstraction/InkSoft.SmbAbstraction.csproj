@@ -11,7 +11,7 @@
     <PackageIcon>PackageIcon.png</PackageIcon>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <Title>SMBLibrary to IFileSystem compatibility shim</Title>
-    <PackageReleaseNotes>Initial fork from original SmbAbstraction project. Updated framework and reference library support. Many breaking changes from original project: Case changes of class names, e.g. SMBFileSystem is now SmbFileSystem; Parameter order / method signature changes for main classes.</PackageReleaseNotes>
+    <PackageReleaseNotes>Library dependency updates, mostly for compatibility with System.IO.Abstractions version 22.0.10 and the related Testably.Abstractions.FileSystem.Interface change.</PackageReleaseNotes>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
