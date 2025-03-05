@@ -13,9 +13,8 @@ public class SmbDriveInfo : IDriveInfo
     {
         FileSystem = fileSystem;
         DriveFormat = smbFileSystemInformation.AttributeInformation?.FileSystemName;
-        Name = path.ShareName();
-        string? rootPath = fileSystem.Path.GetPathRoot(path);
-        RootDirectory = DirInfoFactory.New(rootPath, credential);
+        Name = path.SharePath();
+        RootDirectory = DirInfoFactory.New(Name, credential);
         long actualAvailableAllocationUnits = smbFileSystemInformation.SizeInformation.ActualAvailableAllocationUnits;
         uint sectorsPerUnit = smbFileSystemInformation.SizeInformation.SectorsPerAllocationUnit;
         uint bytesPerSector = smbFileSystemInformation.SizeInformation.BytesPerSector;
@@ -37,7 +36,7 @@ public class SmbDriveInfo : IDriveInfo
 
     public DriveType DriveType => DriveType.Network;
 
-    public bool IsReady => throw new NotImplementedException();
+    public bool IsReady => RootDirectory.Exists;
 
     public string Name { get; }
 

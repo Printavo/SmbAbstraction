@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageId>InkSoft.SmbAbstraction</PackageId>
-    <Version>2.2.0</Version>
+    <Version>2.3.0</Version>
     <TargetFrameworks>net9.0;net8.0;netstandard2.0;netstandard2.1</TargetFrameworks>
     <NeutralLanguage>en-US</NeutralLanguage>
     <Description>This project is a fork of https://github.com/jordanlytle/SmbAbstraction with a few key differences: 1) It uses the original SMBLibrary as opposed to SMBLibraryLite, 2) It conforms to newer versions of https://github.com/TestableIO/System.IO.Abstractions interfaces, and 3) it also targets .Net Standard 2.0. This library implements the System.IO.Abstractions interfaces for interacting with the filesystem and adds support for interacting with UNC or SMB paths from non-Windows (and Windows) clients outside an Active Directory domain.</Description>
@@ -11,7 +11,7 @@
     <PackageIcon>PackageIcon.png</PackageIcon>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <Title>SMBLibrary to IFileSystem compatibility shim</Title>
-    <PackageReleaseNotes>Library dependency updates, mostly for compatibility with System.IO.Abstractions version 22.0.10 and the related Testably.Abstractions.FileSystem.Interface change.</PackageReleaseNotes>
+    <PackageReleaseNotes>Library dependency updates, mostly for compatibility with System.IO.Abstractions version 22.0.11 and the related Testably.Abstractions.FileSystem.Interface change. Path.Combine and async bug fixes.</PackageReleaseNotes>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
@@ -21,7 +21,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="SMBLibrary" Version="1.5.4" />
-    <PackageReference Include="System.IO.Abstractions" Version="22.0.10" />
+    <PackageReference Include="System.IO.Abstractions" Version="22.0.11" />
     <None Include="PackageIcon.png" Pack="true" PackagePath="" />
   </ItemGroup>
 </Project>

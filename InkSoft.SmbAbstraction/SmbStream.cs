@@ -157,9 +157,7 @@ public class SmbStream : Stream
                 default:
                     throw new SmbException($"Unable to read file; Status: {ntStatus}");
             }
-        }
-
-        while (ntStatus == NTStatus.STATUS_PENDING && stopwatch.Elapsed.TotalSeconds <= _smbFileSystemOptions.ClientSessionTimeout);
+        } while (stopwatch.Elapsed.TotalSeconds <= _smbFileSystemOptions.ClientSessionTimeout);
 
         stopwatch.Stop();
 
@@ -171,17 +169,18 @@ public class SmbStream : Stream
         switch (origin)
         {
             case SeekOrigin.Begin:
-                _position = 0;
-                break;
-            case SeekOrigin.Current:
-                break;
+                return _position = offset;
             case SeekOrigin.End:
                 var status = _fileStore.GetFileInformation(out var result, _fileHandle, FileInformationClass.FileStreamInformation);
                 status.AssertSuccess();
                 var fileStreamInformation = (FileStreamInformation)result;
                 _position += fileStreamInformation.Entries[0].StreamSize;
                 return _position;
+            case SeekOrigin.Current:
+            default:
+                break;
         }
+
         _position += offset;
         return _position;
     }
@@ -193,9 +192,7 @@ public class SmbStream : Stream
         byte[] data = new byte[count];
 
         for (int i = offset, i2 = 0; i < count; i++, i2++)
-        {
             data[i2] = buffer[i];
-        }
 
         NTStatus status;
         int bytesWritten;
@@ -203,11 +200,9 @@ public class SmbStream : Stream
         var stopwatch = new Stopwatch();
 
         stopwatch.Start();
-        do
-        {
+        do {
             status = _fileStore.WriteFile(out bytesWritten, _fileHandle, _position, data);
-        }
-        while (status == NTStatus.STATUS_PENDING && stopwatch.Elapsed.TotalSeconds <= _smbFileSystemOptions.ClientSessionTimeout);
+        } while (status == NTStatus.STATUS_PENDING && stopwatch.Elapsed.TotalSeconds <= _smbFileSystemOptions.ClientSessionTimeout);
         stopwatch.Stop();
             
         status.AssertSuccess();
@@ -237,17 +232,13 @@ public class SmbStream : Stream
     public override void CopyTo(Stream destination, int bufferSize)
 #endif
     {
-        if(bufferSize == 0 || bufferSize > MaxBufferSize)
-        {
+        if (bufferSize == 0 || bufferSize > MaxBufferSize)
             bufferSize = MaxBufferSize;
-        }
-
+        
         int count;
         byte[] buffer = new byte[bufferSize];
 
         while ((count = this.Read(buffer, 0, buffer.Length)) != 0)
-        {
             destination.Write(buffer, 0, count);
-        }
     }
 }

@@ -14,5 +14,5 @@ public interface ISmbCredential : IDisposable
     
     string? ShareName { get; }
 
-    string? Path { get; }
+    string Path { get; }
 }

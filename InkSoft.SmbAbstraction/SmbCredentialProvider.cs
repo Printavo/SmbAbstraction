@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace InkSoft.SmbAbstraction;
 
@@ -7,15 +8,21 @@ public class SmbCredentialProvider : ISmbCredentialProvider
 {
     private readonly List<ISmbCredential> _credentials = [];
     
-    private static readonly object s_credentialsLock = new();
+    private static readonly
+#if NET9_0_OR_GREATER
+        Lock
+#else
+        object
+#endif
+        s_credentialsLock = new();
 
     /// <inheritdoc/>
     public ISmbCredential? GetSmbCredential(string path)
     {
         lock (s_credentialsLock)
         {
-            string? host = path.Hostname();
-            string? shareName = path.ShareName();
+            string host = path.Hostname();
+            string shareName = path.ShareName();
             return _credentials.FirstOrDefault(c => c.Host == host && c.ShareName == shareName) ?? _credentials.FirstOrDefault(c => c.Host == host && c.ShareName == null);
         }
     }

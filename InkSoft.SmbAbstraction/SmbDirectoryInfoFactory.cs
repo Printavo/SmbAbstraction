@@ -24,16 +24,7 @@ public class SmbDirectoryInfoFactory(
 
     public SMBTransportType Transport { get; set; } = SMBTransportType.DirectTCPTransport;
     
-    public IDirectoryInfo New(string directoryName)
-    {
-        if (!directoryName.IsSharePath())
-        {
-            var dirInfo = new DirectoryInfo(directoryName);
-            return new SmbDirectoryInfo(dirInfo, FileSystem, credentialProvider);
-        }
-
-        return New(directoryName, null);
-    }
+    public IDirectoryInfo New(string directoryName) => directoryName.IsSharePath() ? New(directoryName, null) : new SmbDirectoryInfo(new DirectoryInfo(directoryName), FileSystem, credentialProvider);
 
     internal IDirectoryInfo New(string path, ISmbCredential? credential)
     {
@@ -42,21 +33,21 @@ public class SmbDirectoryInfoFactory(
             return null;
 
         if (!path.TryResolveHostnameFromPath(out var ipAddress))
-            throw new SmbException($"Failed FromDirectoryName for {path}", new ArgumentException($"Unable to resolve \"{path.Hostname()}\""));
+            throw new SmbException($"Failed SmbDirectoryInfo.New for {path}", new ArgumentException($"Unable to resolve \"{path.Hostname()}\""));
 
         credential ??= credentialProvider.GetSmbCredential(path);
 
         if (credential == null)
-            throw new SmbException($"Failed FromDirectoryName for {path}", new InvalidCredentialException($"Unable to find credential for path: {path}"));
+            throw new SmbException($"Failed SmbDirectoryInfo.New for {path}", new InvalidCredentialException($"Unable to find credential for path: {path}"));
 
         ISMBFileStore fileStore = null;
         object handle = null;
 
         try
         {
-            string? shareName = path.ShareName();
-            string? relativePath = path.RelativeSharePath();
-            _logger?.LogTrace("Trying FromDirectoryName {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
+            string shareName = path.ShareName();
+            string relativePath = path.ShareRelativePath();
+            _logger?.LogTrace("Trying SmbDirectoryInfo.New {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
             using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, smbFileSystemOptions);
             fileStore = connection.SmbClient.TreeConnect(shareName, out var status);
             status.AssertSuccess();
@@ -71,7 +62,7 @@ public class SmbDirectoryInfoFactory(
         }
         catch (Exception ex)
         {
-            throw new SmbException($"Failed FromDirectoryName for {path}", ex);
+            throw new SmbException($"Failed SmbDirectoryInfo.New for {path}", ex);
         }
         finally
         {
@@ -96,8 +87,8 @@ public class SmbDirectoryInfoFactory(
 
         try
         {
-            string? shareName = path.ShareName();
-            string? relativePath = path.RelativeSharePath();
+            string shareName = path.ShareName();
+            string relativePath = path.ShareRelativePath();
 
             _logger?.LogTrace("Trying to SaveDirectoryInfo {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
             using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, smbFileSystemOptions);
@@ -119,6 +110,6 @@ public class SmbDirectoryInfoFactory(
         }
     }
 
-    [return: NotNullIfNotNull("directoryInfo")]
-    public IDirectoryInfo Wrap(DirectoryInfo? directoryInfo) => throw new NotImplementedException();
+    [return: NotNullIfNotNull(nameof(directoryInfo))]
+    public IDirectoryInfo? Wrap(DirectoryInfo? directoryInfo) => fileSystem.DirectoryInfo.Wrap(directoryInfo);
 }

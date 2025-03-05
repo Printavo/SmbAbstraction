@@ -22,7 +22,7 @@ public abstract class DriveInfoTests
         var credentials = _fixture.ShareCredentials;
         _fixture.SmbCredentialProvider.AddSmbCredential(SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, _fixture.RootPath, _fixture.SmbCredentialProvider));
         var smbDriveInfoFactory = new SmbDriveInfoFactory(_fileSystem, _fixture.SmbClientFactory, _fixture.SmbCredentialProvider, new());
-        var shareInfo = smbDriveInfoFactory.New(_fixture.ShareName);
+        var shareInfo = smbDriveInfoFactory.New(_fixture.RootPath);
         Assert.NotNull(shareInfo);
     }
 

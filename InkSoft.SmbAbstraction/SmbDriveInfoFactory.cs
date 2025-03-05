@@ -19,63 +19,33 @@ public class SmbDriveInfoFactory(IFileSystem fileSystem, ISmbClientFactory smbCl
 
     public SMBTransportType Transport { get; set; } = SMBTransportType.DirectTCPTransport;
     
+    /// <summary>
+    /// <inheritdoc/>
+    /// </summary>
+    /// <remarks>
+    /// Note that although <paramref name="driveName"/> is the canonical param name, it can also be any fully qualified path.
+    /// </remarks>
     public IDriveInfo New(string driveName)
     {
-        if(string.IsNullOrEmpty(driveName))
-        {
-            throw new SmbException("Failed FromDriveName", new ArgumentException("Drive name cannot be null or empty.", nameof(driveName)));
-        }
+        if (!driveName.IsSharePath())
+            return new DriveInfoWrapper(new FileSystem(), new(driveName));
 
-        if (driveName.IsSharePath() || PossibleShareName(driveName))
-        {
-            return New(driveName, null);
-        }
+        var credential = smbCredentialProvider.GetSmbCredential(driveName) ?? throw new SmbException("Unable to find credential in SMBCredentialProvider for "+driveName);
+        string correspondingCredentialPath = credential.Path!;
 
-        var driveInfo = new DriveInfo(driveName);
-        return new DriveInfoWrapper(new FileSystem(), driveInfo);
-    }
-
-    internal IDriveInfo? New(string shareName, ISmbCredential? credential)
-    {
-        if (credential == null)
-        {
-            if(shareName.IsValidSharePath())
-            {
-                credential = smbCredentialProvider.GetSmbCredential(shareName);
-                shareName = shareName.ShareName();
-            }
-            else
-            {
-                credential = smbCredentialProvider.GetSmbCredentials().FirstOrDefault(c => c.Path.ShareName().Equals(shareName));
-            }
-
-            if (credential == null)
-            {
-                _logger?.LogTrace("Unable to find credential in SMBCredentialProvider for path: {shareName}", shareName);
-                return null;
-            }
-        }
-
-        string? path = credential.Path;
-        if (!path.TryResolveHostnameFromPath(out var ipAddress))
-        {
-            throw new SmbException($"Failed FromDriveName for {shareName}", new ArgumentException($"Unable to resolve \"{path.Hostname()}\""));
-        }
+        if (!correspondingCredentialPath.TryResolveHostnameFromPath(out var ipAddress))
+            throw new SmbException($"Failed FromDriveName for {driveName}", new ArgumentException($"Unable to resolve \"{correspondingCredentialPath.Hostname()}\""));
 
         try
         {
-            using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, smbFileSystemOptions);
-
-            string? relativePath = path.RelativeSharePath();
-            var fileStore = connection.SmbClient.TreeConnect(shareName, out var status);
-            status.AssertSuccess();
-            var smbFileSystemInformation = new SmbFileSystemInformation(fileStore, path, status);
-            var smbDriveInfo = new SmbDriveInfo(path, FileSystem, smbFileSystemInformation, credential);
-            return smbDriveInfo;
+            using var smbConnection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, smbFileSystemOptions);
+            var fileStore = smbConnection.SmbClient.TreeConnect(driveName.ShareName(), out var ntStatus);
+            ntStatus.AssertSuccess();
+            return new SmbDriveInfo(driveName, FileSystem, new(fileStore), credential);
         }
         catch (Exception ex)
         {
-            throw new SmbException($"Failed FromDriveName for {shareName}", ex);
+            throw new SmbException($"Failed FromDriveName for {driveName}", ex);
         }
     }
 
@@ -87,7 +57,7 @@ public class SmbDriveInfoFactory(IFileSystem fileSystem, ISmbClientFactory smbCl
         return drives.ToArray();
     }
 
-    public IDriveInfo Wrap(DriveInfo driveInfo) => throw new NotImplementedException();
+    public IDriveInfo Wrap(DriveInfo driveInfo) => fileSystem.DriveInfo.Wrap(driveInfo);
 
     internal IDriveInfo[] GetDrives(ISmbCredential? smbCredential)
     {
@@ -101,13 +71,9 @@ public class SmbDriveInfoFactory(IFileSystem fileSystem, ISmbClientFactory smbCl
         }
 
         if (smbCredential != null)
-        {
             credentialsToCheck.Add(smbCredential);
-        }
         else
-        {
             credentialsToCheck = smbCredentialProvider.GetSmbCredentials().ToList();
-        }
 
         var shareHostNames = credentialsToCheck.Select(c => c.Path.Hostname()).Distinct().ToList();
 
@@ -118,33 +84,21 @@ public class SmbDriveInfoFactory(IFileSystem fileSystem, ISmbClientFactory smbCl
             {
                 string? path = credential.Path;
                 if (!path.TryResolveHostnameFromPath(out var ipAddress))
-                {
                     throw new SmbException($"Failed to connect to {path.Hostname()}", new ArgumentException($"Unable to resolve \"{path.Hostname()}\""));
-                }
 
                 using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, smbFileSystemOptions);
-
-                var shareNames = connection.SmbClient.ListShares(out var status);
-                var shareDirectoryInfoFactory = new SmbDirectoryInfoFactory(FileSystem, smbClientFactory, smbCredentialProvider, smbFileSystemOptions);
+                var shareNames = connection.SmbClient.ListShares(out var ntStatus);
 
                 foreach (string? shareName in shareNames)
                 {
                     string? sharePath = path.BuildSharePath(shareName);
-                    string? relativeSharePath = sharePath.RelativeSharePath();
-
                     _logger?.LogTrace("Trying to get drive info for {shareName}", shareName);
 
                     try
                     {
-                        var fileStore = connection.SmbClient.TreeConnect(shareName, out status);
-
-                        status.AssertSuccess();
-
-                        var smbFileSystemInformation = new SmbFileSystemInformation(fileStore, sharePath, status);
-
-                        var smbDriveInfo = new SmbDriveInfo(sharePath, FileSystem, smbFileSystemInformation, credential);
-
-                        driveInfos.Add(smbDriveInfo);
+                        var fileStore = connection.SmbClient.TreeConnect(shareName, out ntStatus);
+                        ntStatus.AssertSuccess();
+                        driveInfos.Add(new SmbDriveInfo(sharePath, FileSystem, new(fileStore), credential));
                     }
                     catch (IOException ioEx)
                     {
@@ -164,11 +118,5 @@ public class SmbDriveInfoFactory(IFileSystem fileSystem, ISmbClientFactory smbCl
         }
 
         return driveInfos.ToArray();
-    }
-
-    private static bool PossibleShareName(string input)
-    {
-        var drives = DriveInfo.GetDrives();
-        return drives.All(d => !input.StartsWith(d.Name));
     }
 }

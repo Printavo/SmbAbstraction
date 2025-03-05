@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project tries to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] 2025-03-05
+
+### Changed
+- SmbFile async fixes
+- Path.Combine fixes/changes
+- Null static analysis improvements
+- PathExtensions breaking changes
+- Removed NotImplemented overrides
+- SmbFile.Exists() and SmbDirectory.Exists() refactor
+- Misc. SmbDriveInfo changes
+- System.IO.Abstractions version 22.0.11
+
 ## [2.2.0] 2025-02-26
 
 ### Changed

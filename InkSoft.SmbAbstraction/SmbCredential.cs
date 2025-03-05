@@ -16,7 +16,7 @@ public class SmbCredential : ISmbCredential
 
     public string? ShareName { get; }
 
-    public string? Path { get; }
+    public string Path { get; }
 
     private readonly bool _removeFromProviderWhenDisposed;
 
@@ -54,7 +54,7 @@ public class SmbCredential : ISmbCredential
     /// <summary>
     /// Makes it such that attempts to access <paramref name="path"/> are performed with the given credentials.
     /// </summary>
-    /// <param name="domain">If the domain isn't separate from <paramref name="username"/> already, you should/may just pass the whole DOMAIN\Username string via the username property and it will be split there.</param>
+    /// <param name="domain">If the domain isn't separate from <paramref name="username"/> already, you should/may just pass the whole DOMAIN\Username string via the username property to be split within the constructor.</param>
     /// <param name="username">The username with which to access directories or files under <paramref name="path"/>. May optionally be prefixed with the domain as DOMAIN\Username instead of splitting and passing the domain via <paramref name="domain"/>.</param>
     /// <param name="password">The user account's password.</param>
     /// <param name="path">The path prefix for which this account will be used to authenticate. It may be just a host, a host plus share name, or a host, share name, and some amount of subdirectories within the share.</param>

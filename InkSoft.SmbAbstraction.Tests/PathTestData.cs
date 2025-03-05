@@ -12,7 +12,7 @@ public interface IPathTestData
 
 public class SmbUriTestData : IPathTestData
 {
-    public string Root => "smb://host/share";
+    public string Root => "smb://host/share/";
     public string DirectoryAtRoot => "smb://host/share/dir";
     public string DirectoryAtRootWithTrailingSlash => "smb://host/share/dir";
     public string SpaceInDirectoryAtRoot => "smb://host/share/dir dir/file.txt";
@@ -27,7 +27,7 @@ public class SmbUriTestData : IPathTestData
 
 public class UncPathTestData : IPathTestData
 {
-    public string Root => $@"\\host\share";
+    public string Root => $@"\\host\share\";
     public string DirectoryAtRoot => $@"\\host\share\dir";
     public string DirectoryAtRootWithTrailingSlash => $@"\\host\share\dir\";
     public string SpaceInDirectoryAtRoot => @"\\host\share\dir dir\file.txt";

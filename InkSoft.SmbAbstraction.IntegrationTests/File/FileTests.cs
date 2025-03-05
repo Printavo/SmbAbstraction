@@ -2,6 +2,7 @@
 using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -51,6 +52,36 @@ public abstract class FileTests
         using var credential = SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, _fixture.RootPath, _fixture.SmbCredentialProvider);
 
         Assert.True(_fileSystem.File.Exists(filePath));
+    }
+
+    [Fact, Trait("Category", "Integration")]
+    public void WriteAllTextShouldWork()
+    {
+        var credentials = _fixture.ShareCredentials;
+        using var credential = SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, _fixture.RootPath, _fixture.SmbCredentialProvider);
+
+        string? tempFilePath = _fileSystem.Path.Combine(_fixture.RootPath, $"deleteme {nameof(WriteAllTextShouldWork)} {DateTime.Now.ToFileTimeUtc()}.txt");
+        Assert.False(_fileSystem.File.Exists(tempFilePath));
+        string randomFileText = DateTime.Now.ToFileTimeUtc()+" "+Guid.NewGuid();
+        _fileSystem.File.WriteAllText(tempFilePath, randomFileText);
+        Assert.Equal(randomFileText, _fileSystem.File.ReadAllText(tempFilePath));
+        _fileSystem.File.Delete(tempFilePath);
+        Assert.False(_fileSystem.File.Exists(tempFilePath));
+    }
+
+    [Fact, Trait("Category", "Integration")]
+    public async Task WriteAllTextAsyncShouldWork()
+    {
+        var credentials = _fixture.ShareCredentials;
+        using var credential = SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, _fixture.RootPath, _fixture.SmbCredentialProvider);
+
+        string? tempFilePath = _fileSystem.Path.Combine(_fixture.RootPath, $"deleteme {nameof(WriteAllTextAsyncShouldWork)} {DateTime.Now.ToFileTimeUtc()}.txt");
+        Assert.False(_fileSystem.File.Exists(tempFilePath));
+        string randomFileText = DateTime.Now.ToFileTimeUtc()+" "+Guid.NewGuid();
+        await _fileSystem.File.WriteAllTextAsync(tempFilePath, randomFileText);
+        Assert.Equal(randomFileText, await _fileSystem.File.ReadAllTextAsync(tempFilePath));
+        _fileSystem.File.Delete(tempFilePath);
+        Assert.False(_fileSystem.File.Exists(tempFilePath));
     }
 
     [Fact, Trait("Category", "Integration")]

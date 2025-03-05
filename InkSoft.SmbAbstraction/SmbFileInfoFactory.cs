@@ -1,10 +1,10 @@
-﻿using System;
-using System.IO;
-using System.IO.Abstractions;
-using InkSoft.SmbAbstraction.Utilities;
+﻿using InkSoft.SmbAbstraction.Utilities;
 using Microsoft.Extensions.Logging;
 using SMBLibrary;
 using SMBLibrary.Client;
+using System;
+using System.IO;
+using System.IO.Abstractions;
 
 namespace InkSoft.SmbAbstraction;
 
@@ -43,8 +43,8 @@ public class SmbFileInfoFactory(
 
         try
         {
-            string? shareName = path.ShareName();
-            string? relativePath = path.RelativeSharePath();
+            string shareName = path.ShareName();
+            string relativePath = path.ShareRelativePath();
             _logger?.LogTrace("Trying FromFileName {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
             using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, smbFileSystemOptions);
             fileStore = connection.SmbClient.TreeConnect(shareName, out var status);
@@ -93,8 +93,8 @@ public class SmbFileInfoFactory(
 
         try
         {
-            string? shareName = path.ShareName();
-            string? relativePath = path.RelativeSharePath();
+            string shareName = path.ShareName();
+            string relativePath = path.ShareRelativePath();
             _logger?.LogTrace("Trying to SaveFileInfo {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
             using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, smbFileSystemOptions);
             fileStore = connection.SmbClient.TreeConnect(shareName, out var status);
@@ -121,5 +121,5 @@ public class SmbFileInfoFactory(
         }
     }
 
-    public IFileInfo Wrap(FileInfo fileInfo) => throw new NotImplementedException();
+    public IFileInfo Wrap(FileInfo fileInfo) => fileSystem.FileInfo.Wrap(fileInfo);
 }

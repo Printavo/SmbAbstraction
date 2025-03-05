@@ -21,16 +21,11 @@ internal sealed class SmbFileStreamWrapper(FileStream fileStream) : FileSystemSt
     public void SetAccessControl(object value)
     {
         if (value is FileSecurity fileSecurity)
-        {
             fileStream.SetAccessControl(fileSecurity);
-        }
         else
-        {
             throw new ArgumentException("value must be of type `FileSecurity`");
-        }
     }
 
     /// <inheritdoc />
-    public override void Flush(bool flushToDisk)
-        => fileStream.Flush(flushToDisk);
+    public override void Flush(bool flushToDisk) => fileStream.Flush(flushToDisk);
 }

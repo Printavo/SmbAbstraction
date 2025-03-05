@@ -1,9 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Net;
-using System.IO;
-using SMBLibrary;
+﻿using SMBLibrary;
 using SMBLibrary.Client;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Net;
 using System.Threading;
 
 namespace InkSoft.SmbAbstraction;
@@ -12,7 +12,14 @@ public class SmbConnection : IDisposable
 {
     private static readonly Dictionary<int, Dictionary<IPAddress, SmbConnection>> s_instances = new();
     
-    private static readonly object s_connectionLock = new();
+    
+    private static readonly
+#if NET9_0_OR_GREATER
+        Lock
+#else
+        object
+#endif
+        s_connectionLock = new();
 
     private readonly IPAddress _address;
     
@@ -54,12 +61,12 @@ public class SmbConnection : IDisposable
 
     public static SmbConnection CreateSmbConnectionForStream(ISmbClientFactory smbClientFactory, IPAddress address, SMBTransportType transport, ISmbCredential credential, SmbFileSystemOptions? smbFileSystemOptions)
     {
-        #if NET8_0_OR_GREATER
+#if NET8_0_OR_GREATER
             ArgumentNullException.ThrowIfNull(credential, nameof(credential));
-        #else        
+#else
             if (credential == null)
                 throw new ArgumentNullException(nameof(credential));
-        #endif
+#endif
 
         // Create new connection
         var instance = new SmbConnection(smbClientFactory, address, transport, credential, -1, smbFileSystemOptions);
@@ -69,12 +76,12 @@ public class SmbConnection : IDisposable
 
     public static SmbConnection CreateSmbConnection(ISmbClientFactory smbClientFactory, IPAddress address, SMBTransportType transport, ISmbCredential credential, SmbFileSystemOptions? smbFileSystemOptions)
     {
-        #if NET8_0_OR_GREATER
+#if NET8_0_OR_GREATER
             ArgumentNullException.ThrowIfNull(credential, nameof(credential));
-        #else        
+#else
             if (credential == null)
                 throw new ArgumentNullException(nameof(credential));
-        #endif
+#endif
 
         int threadId = Environment.CurrentManagedThreadId;
 
@@ -96,10 +103,9 @@ public class SmbConnection : IDisposable
 
                 // in case the connection is not connected, dispose it and recreate a new one
                 instance.Dispose();
+
                 if (!s_instances.ContainsKey(threadId))
-                {
                     s_instances.Add(threadId, new());
-                }
             }
 
             // Create new connection
@@ -136,9 +142,7 @@ public class SmbConnection : IDisposable
                     {
                         s_instances[_threadId].Remove(_address);
                         if (s_instances[_threadId].Count == 0)
-                        {
                             s_instances.Remove(_threadId);
-                        }
                     }
 
                     _isDisposed = true;

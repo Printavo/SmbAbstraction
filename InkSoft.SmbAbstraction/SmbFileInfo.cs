@@ -22,12 +22,15 @@ public class SmbFileInfo(IFileSystem fileSystem, string path) : FileInfoWrapper(
     {
         _creationTime = fileInfo.CreationTime;
         _creationTimeUtc = fileInfo.CreationTimeUtc;
-        _lastAccessTime = fileInfo.LastAccessTime;
+        LastAccessTime = fileInfo.LastAccessTime;
         _lastAccessTimeUtc = fileInfo.LastAccessTimeUtc;
-        _lastWriteTime = fileInfo.LastWriteTime;
+        LastWriteTime = fileInfo.LastWriteTime;
         _lastWriteTimeUtc = fileInfo.LastWriteTimeUtc;
         _attributes = fileInfo.Attributes;
-        _directory = DirInfoFactory.New(fileInfo.Directory.FullName);
+
+        if (fileInfo.Directory != null)
+            _directory = DirInfoFactory.New(fileInfo.Directory.FullName);
+        
         _directoryName = fileInfo.DirectoryName;
         _exists = fileInfo.Exists;
         _isReadOnly = fileInfo.IsReadOnly;
@@ -41,29 +44,32 @@ public class SmbFileInfo(IFileSystem fileSystem, string path) : FileInfoWrapper(
             _creationTime = fileBasicInformation.CreationTime.Time.Value;
             _creationTimeUtc = CreationTime.ToUniversalTime();
         }
+
         if (fileBasicInformation.LastAccessTime.Time.HasValue)
         {
-            _lastAccessTime = fileBasicInformation.LastAccessTime.Time.Value;
+            LastAccessTime = fileBasicInformation.LastAccessTime.Time.Value;
             _lastAccessTimeUtc = LastAccessTime.ToUniversalTime();
         }
+        
         if (fileBasicInformation.LastWriteTime.Time.HasValue)
         {
-            _lastWriteTime = fileBasicInformation.LastWriteTime.Time.Value;
+            LastWriteTime = fileBasicInformation.LastWriteTime.Time.Value;
             _lastWriteTimeUtc = LastWriteTime.ToUniversalTime();
         }
 
         _attributes = (System.IO.FileAttributes)fileBasicInformation.FileAttributes;
-        string? parentPath = _fileSystem.Path.GetDirectoryName(path);
+        _directoryName = _fileSystem.Path.GetDirectoryName(path);
 
-        _directory = DirInfoFactory.New(parentPath, credential);
-        _directoryName = parentPath;
+        if (!string.IsNullOrWhiteSpace(_directoryName))
+            _directory = DirInfoFactory.New(_directoryName, credential);
+        
         _exists = File.Exists(path);
         _isReadOnly = fileBasicInformation.FileAttributes.HasFlag(SMBLibrary.FileAttributes.ReadOnly);
         _length = fileStandardInformation.EndOfFile;
     }
 
-    private IDirectoryInfo _directory;
-    private string _directoryName;
+    private IDirectoryInfo? _directory;
+    private string? _directoryName;
     private bool _isReadOnly;
     private long _length;
     private System.IO.FileAttributes _attributes;
@@ -71,13 +77,11 @@ public class SmbFileInfo(IFileSystem fileSystem, string path) : FileInfoWrapper(
     private DateTime _creationTimeUtc;
     private bool _exists;
     private string _fullName = path;
-    private DateTime _lastAccessTime;
     private DateTime _lastAccessTimeUtc;
-    private DateTime _lastWriteTime;
     private DateTime _lastWriteTimeUtc;
 
-    public override IDirectoryInfo Directory => _directory;
-    public override string DirectoryName => _directoryName;
+    public override IDirectoryInfo? Directory => _directory;
+    public override string? DirectoryName => _directoryName;
     public override bool IsReadOnly => _isReadOnly;
     public override long Length => _length;
     public override System.IO.FileAttributes Attributes => _attributes;
@@ -85,9 +89,11 @@ public class SmbFileInfo(IFileSystem fileSystem, string path) : FileInfoWrapper(
     public override DateTime CreationTimeUtc { get => _creationTimeUtc; set => _creationTimeUtc = value; }
     public override bool Exists => _exists;
     public override string FullName => _fullName;
-    public sealed override DateTime LastAccessTime { get => _lastAccessTime; set => _lastAccessTime = value; }
+    public sealed override DateTime LastAccessTime { get; set; }
+
     public override DateTime LastAccessTimeUtc { get => _lastAccessTimeUtc; set => _lastAccessTimeUtc = value; }
-    public sealed override DateTime LastWriteTime { get => _lastWriteTime; set => _lastWriteTime = value; }
+    public sealed override DateTime LastWriteTime { get; set; }
+
     public override DateTime LastWriteTimeUtc { get => _lastWriteTimeUtc; set => _lastWriteTimeUtc = value; }
 
     public override StreamWriter AppendText() => File.AppendText(FullName);
@@ -181,9 +187,9 @@ public class SmbFileInfo(IFileSystem fileSystem, string path) : FileInfoWrapper(
         _creationTimeUtc = fileInfo.CreationTimeUtc;
         _exists = fileInfo.Exists;
         _fullName = fileInfo.FullName;
-        _lastAccessTime = fileInfo.LastAccessTime;
+        LastAccessTime = fileInfo.LastAccessTime;
         _lastAccessTimeUtc = fileInfo.LastAccessTimeUtc;
-        _lastWriteTime = fileInfo.LastWriteTime;
+        LastWriteTime = fileInfo.LastWriteTime;
         _lastWriteTimeUtc = fileInfo.LastWriteTimeUtc;
     }
 
@@ -201,22 +207,6 @@ public class SmbFileInfo(IFileSystem fileSystem, string path) : FileInfoWrapper(
             fileBasicInformation.FileAttributes &= SMBLibrary.FileAttributes.ReadOnly;
 
         return fileBasicInformation;
-    }
-
-    public override void Decrypt()
-    {
-        if (!FullName.IsSharePath())
-            base.Decrypt();
-
-        throw new NotImplementedException();
-    }
-
-    public override void Encrypt()
-    {
-        if(!FullName.IsSharePath())
-            base.Encrypt();
-
-        throw new NotImplementedException();
     }
 
     public override IFileInfo Replace(string destinationFilePath, string destinationBackupFilePath) => Replace(destinationFilePath, destinationBackupFilePath, false);

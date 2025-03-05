@@ -1,10 +1,8 @@
-﻿using System.Collections.Generic;
-
-namespace InkSoft.SmbAbstraction;
+﻿namespace InkSoft.SmbAbstraction;
 
 public interface ISmbCredentialProvider
 {
-    ISmbCredential GetSmbCredential(string path);
+    ISmbCredential? GetSmbCredential(string path);
     
     /// <summary>
     /// A shallow copy of the internally stored credential list.
