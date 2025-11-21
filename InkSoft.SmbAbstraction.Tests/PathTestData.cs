@@ -7,7 +7,7 @@ public interface IPathTestData
     public string FileAtRoot { get; }
     public string NestedDirectoryAtRoot { get; }
     public string FileInNestedDirectoryAtRoot { get; }
-        
+
 }
 
 public class SmbUriTestData : IPathTestData

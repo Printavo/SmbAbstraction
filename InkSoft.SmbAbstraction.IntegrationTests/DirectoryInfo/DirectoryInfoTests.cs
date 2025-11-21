@@ -3,7 +3,6 @@ using System.IO.Abstractions;
 using System.Linq;
 using System.Runtime.InteropServices;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace InkSoft.SmbAbstraction.IntegrationTests.DirectoryInfo;
 
@@ -58,7 +57,7 @@ public abstract class DirectoryInfoTests
 
         string? createDirectoryPath = _fileSystem.Path.Combine(_fixture.RootPath, $"test-move-local-directory-{DateTime.Now.ToFileTimeUtc()}");
         var directoryInfo = _fileSystem.Directory.CreateDirectory(createDirectoryPath);
-            
+
         directoryInfo.MoveTo(newDirectory);
 
         Assert.True(_fileSystem.Directory.Exists(newDirectory));

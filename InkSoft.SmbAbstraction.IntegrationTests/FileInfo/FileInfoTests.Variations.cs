@@ -1,6 +1,5 @@
 ﻿using InkSoft.SmbAbstraction.IntegrationTests.Fixtures;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace InkSoft.SmbAbstraction.IntegrationTests.FileInfo;
 

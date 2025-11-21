@@ -2,8 +2,8 @@
 
 namespace InkSoft.SmbAbstraction;
 
-public class SmbFileSystemWatcherFactory(IFileSystem fileSystem) : FileSystemWatcherFactory(new FileSystem())
+public class SmbFileSystemWatcherFactory(SmbFileSystem smbFileSystem): FileSystemWatcherFactory(smbFileSystem.NonSmbFileSystem)
 {
     /// <inheritdoc cref="SmbFileSystem"/>
-    public new IFileSystem FileSystem => fileSystem;
+    public new IFileSystem FileSystem => smbFileSystem;
 }

@@ -4,14 +4,15 @@ using System.IO.Abstractions;
 
 namespace InkSoft.SmbAbstraction;
 
-public class SmbDriveInfo : IDriveInfo
+public class SmbDriveInfo: IDriveInfo
 {
     private SmbDirectoryInfoFactory DirInfoFactory => (SmbDirectoryInfoFactory)FileSystem.DirectoryInfo;
+
     private readonly string _volumeLabel;
 
-    public SmbDriveInfo(string path, IFileSystem fileSystem, SmbFileSystemInformation smbFileSystemInformation, ISmbCredential credential)
+    public SmbDriveInfo(SmbFileSystem smbFileSystem, string path, SmbFileSystemInformation smbFileSystemInformation, ISmbCredential credential)
     {
-        FileSystem = fileSystem;
+        FileSystem = smbFileSystem;
         DriveFormat = smbFileSystemInformation.AttributeInformation?.FileSystemName;
         Name = path.SharePath();
         RootDirectory = DirInfoFactory.New(Name, credential);
@@ -19,7 +20,7 @@ public class SmbDriveInfo : IDriveInfo
         uint sectorsPerUnit = smbFileSystemInformation.SizeInformation.SectorsPerAllocationUnit;
         uint bytesPerSector = smbFileSystemInformation.SizeInformation.BytesPerSector;
         long totalAllocationUnits = smbFileSystemInformation.SizeInformation.TotalAllocationUnits;
-        long availableAllocationUnits = smbFileSystemInformation.SizeInformation.CallerAvailableAllocationUnits;  
+        long availableAllocationUnits = smbFileSystemInformation.SizeInformation.CallerAvailableAllocationUnits;
 
         AvailableFreeSpace = availableAllocationUnits * sectorsPerUnit * bytesPerSector;
         TotalFreeSpace = actualAvailableAllocationUnits * sectorsPerUnit * bytesPerSector;

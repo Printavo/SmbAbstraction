@@ -5,11 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project tries to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.3.0] 2025-03-05
+## [3.0.0] 2025-11-21
+
+### Fixed
+- SmbFileStreamFactory / FileStream.New fixes
+- Potential fix for Dispose() thread exhaustion and locking issue
 
 ### Changed
+- NuGet package dependency updates
+- Constructor signature changes
+- Added .Net 10 target
+
+## [2.3.0] 2025-03-05
+
+### Fixed
 - SmbFile async fixes
 - Path.Combine fixes/changes
+
+### Changed
 - Null static analysis improvements
 - PathExtensions breaking changes
 - Removed NotImplemented overrides

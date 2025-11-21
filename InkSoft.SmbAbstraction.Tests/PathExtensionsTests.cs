@@ -34,7 +34,7 @@ public class PathExtensionsTests
         // It should also work with smb:// paths in the same way.
         path1 = "smb://"+path1[2..];
         smbRelatedOutput = "smb:"+smbRelatedOutput.Replace('\\', '/');
-        
+
         Assert.Equal(smbRelatedOutput, _smbFileSystem.Path.Combine(path1, path2));
     }
 
@@ -57,10 +57,10 @@ public class PathExtensionsTests
 
         // It should also work with smb:// paths in the same way.
         inputPath = "smb:"+inputPath.Replace('\\', '/');
-        
+
         if (outputPath != null)
             outputPath = "smb:"+outputPath.Replace('\\', '/');
-        
+
         Assert.Equal(outputPath, _smbFileSystem.Path.GetDirectoryName(inputPath));
     }
 

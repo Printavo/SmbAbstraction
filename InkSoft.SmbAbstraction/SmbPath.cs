@@ -5,10 +5,10 @@ using System.Linq;
 
 namespace InkSoft.SmbAbstraction;
 
-public class SmbPath(IFileSystem fileSystem) : PathWrapper(new FileSystem())
+public class SmbPath(SmbFileSystem smbFileSystem): PathWrapper(smbFileSystem.NonSmbFileSystem)
 {
     /// <inheritdoc cref="SmbFileSystem"/>
-    public new IFileSystem FileSystem => fileSystem;
+    public new IFileSystem FileSystem => smbFileSystem;
 
     /// <summary>
     /// Overrides the default implementation because the local OS FileSystem might use a different separator than is expected by the remote server.
@@ -35,7 +35,7 @@ public class SmbPath(IFileSystem fileSystem) : PathWrapper(new FileSystem())
         string shareRoot = isSmb ? $"smb://{uri.Host}/{uri.Segments[1].RemoveAnySeparators()}/" : @$"\\{uri.Host}\{uri.Segments[1].RemoveAnySeparators()}\";
 
         string? relativePath = path[shareRoot.Length..];
-        
+
         if (path.Length <= shareRoot.Length)
             return null;
 

@@ -6,7 +6,7 @@ namespace InkSoft.SmbAbstraction;
 /// <summary>
 /// A file system abstraction for accessing SMB/UNC shares without relying on OS APIs for authentication.
 /// </summary>
-public class SmbFileSystem : FileSystemBase
+public class SmbFileSystem: FileSystemBase
 {
     /// <summary>
     /// Creates a new instance of <see cref="SmbFileSystem"/>.
@@ -17,24 +17,36 @@ public class SmbFileSystem : FileSystemBase
     /// <param name="loggerFactory">App logger service. Foregoes logging when null.</param>
     public SmbFileSystem(ISmbClientFactory smbClientFactory, ISmbCredentialProvider credentialProvider, SmbFileSystemOptions? smbFileSystemOptions, ILoggerFactory? loggerFactory)
     {
-        smbFileSystemOptions ??= new();
-
+        ClientFactory = smbClientFactory;
+        CredentialProvider = credentialProvider;
+        Options = smbFileSystemOptions ?? new();
         LoggerFactory = loggerFactory;
-        DriveInfo = new SmbDriveInfoFactory(this, smbClientFactory, credentialProvider, smbFileSystemOptions, loggerFactory);
-        DirectoryInfo = new SmbDirectoryInfoFactory(this, smbClientFactory, credentialProvider, smbFileSystemOptions, loggerFactory);
-        FileInfo = new SmbFileInfoFactory(this, smbClientFactory, credentialProvider, smbFileSystemOptions, loggerFactory);
+        DriveInfo = new SmbDriveInfoFactory(this, loggerFactory?.CreateLogger<SmbDriveInfoFactory>());
+        DirectoryInfo = new SmbDirectoryInfoFactory(this, loggerFactory?.CreateLogger<SmbDirectoryInfoFactory>());
+        FileInfo = new SmbFileInfoFactory(this, loggerFactory?.CreateLogger<SmbFileInfoFactory>());
         FileVersionInfo = new SmbFileVersionInfoFactory(this);
         Path = new SmbPath(this);
-        File = new SmbFile(this, smbClientFactory, credentialProvider, smbFileSystemOptions, loggerFactory);
-        Directory = new SmbDirectory(this, smbClientFactory, credentialProvider, smbFileSystemOptions, loggerFactory);
+        File = new SmbFile(this, loggerFactory?.CreateLogger<SmbFile>());
+        Directory = new SmbDirectory(this, loggerFactory?.CreateLogger<SmbDirectory>());
         FileStream = new SmbFileStreamFactory(this);
         FileSystemWatcher = new SmbFileSystemWatcherFactory(this);
     }
+
+    public ISmbClientFactory ClientFactory { get; set; }
+
+    public ISmbCredentialProvider CredentialProvider { get; set; }
+
+    public SmbFileSystemOptions Options { get; set; }
 
     /// <summary>
     /// Exposing the internal logger factory, mostly for the benefit of IFileSystem extension methods.
     /// </summary>
     public ILoggerFactory? LoggerFactory { get; }
+
+    /// <summary>
+    /// <see cref="IFileSystem"/> to which operations on non-SMB paths are delegated. Defaults to <see cref="FileSystem"/>.
+    /// </summary>
+    public IFileSystem NonSmbFileSystem { get; set; } = new FileSystem();
 
     /// <inheritdoc cref="SmbDriveInfoFactory"/>
     public override IDriveInfoFactory DriveInfo { get; }

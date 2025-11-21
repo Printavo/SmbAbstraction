@@ -123,7 +123,7 @@ public static class NtStatusExtensions
             case NTStatus.STATUS_DISK_FULL:
                 throw new IOException($"{ ntStatus.ToString() }: Disk is full.");
             case NTStatus.STATUS_LOGON_TYPE_NOT_GRANTED:
-                throw new UnauthorizedAccessException($"{ntStatus.ToString()}: {c_ntStatusStatusLogonTypeNotGranted}"); 
+                throw new UnauthorizedAccessException($"{ntStatus.ToString()}: {c_ntStatusStatusLogonTypeNotGranted}");
             case NTStatus.STATUS_ACCOUNT_LOCKED_OUT:
                 throw new UnauthorizedAccessException($"{ntStatus.ToString()}: {c_ntStatusStatusAccountLockedOut}");
             case NTStatus.STATUS_ACCOUNT_RESTRICTION:
@@ -153,7 +153,7 @@ public static class NtStatusExtensions
             case NTStatus.STATUS_PENDING:
                 throw new InvalidOperationException($"{ntStatus.ToString()}: {c_ntStatusStatusPending}");
             case (NTStatus)3221225566:
-                throw new UnauthorizedAccessException("No logon servers are currently available to service the logon request.");  
+                throw new UnauthorizedAccessException("No logon servers are currently available to service the logon request.");
             case NTStatus.STATUS_IO_TIMEOUT:
             case NTStatus.STATUS_INFO_LENGTH_MISMATCH:
             case NTStatus.STATUS_INSUFFICIENT_RESOURCES:
@@ -161,14 +161,13 @@ public static class NtStatusExtensions
                 throw new IOException(ntStatus.ToString());
             case NTStatus.STATUS_WRONG_PASSWORD:
                 throw new UnauthorizedAccessException(ntStatus.ToString());
-            
+
             case NTStatus.STATUS_NOTIFY_CLEANUP: // Indicates that a notify change request has been completed due to closing the handle that made the notify change request.
             case NTStatus.STATUS_SUCCESS:
             default:
                 break;
         }
     }
-
 
     // https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb/6ab6ca20-b404-41fd-b91a-2ed39e3762ea
     // https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-cifs/8f11e0f3-d545-46cc-97e6-f00569e3e1bc
@@ -215,7 +214,7 @@ public static class NtStatusExtensions
     private const string c_errBadShare = "ERRbadshare(0x0020) - ETXTBSY - An attempted open operation conflicts with an existing open";
     private const string c_errLock = "ERRlock(0x0021) - EDEADLOCK - A lock request specified an invalid locking mode, or conflicted with an existing file lock";
 
-    // Regular NTStatus Values 
+    // Regular NTStatus Values
     // https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/596a1078-e883-4972-9bbc-49e60bebca55
 
     private const string c_ntStatusStatusObjectNameInvalid = "The object name is invalid. (0xC0000033)";

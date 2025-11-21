@@ -8,7 +8,7 @@ public class NetworkShareService(
     ISmbCredentialProvider credentialProvider
 ){
     private const string c_sharePath = @"\\host\ShareName"; // e.g. \\host\ShareName or smb://host/sharename
-    
+
     private string Path => fileSystem.Path.Combine(c_sharePath, "test.txt");
 
     /// <summary>
@@ -18,7 +18,7 @@ public class NetworkShareService(
     {
         // SMBCredential will parse the share path from path. These credentials are removed from the cache when the using block is exited.
         using var credential = SmbCredential.AddToProvider("domain", "username", "password", c_sharePath, credentialProvider);
-        
+
         // FileInfo
         var fileInfo = fileSystem.FileInfo.New(Path);
 

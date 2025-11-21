@@ -2,18 +2,18 @@
 using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace InkSoft.SmbAbstraction.IntegrationTests.File;
 
-public abstract class FileTests
+public abstract class FileTests(CancellationToken testCancellationToken)
 {
     readonly TestFixture _fixture;
     private IFileSystem _fileSystem;
 
-    protected FileTests(TestFixture fixture, ITestOutputHelper outputHelper)
+    protected FileTests(TestFixture fixture, ITestOutputHelper outputHelper, CancellationToken testCancellationToken): this(testCancellationToken)
     {
         _fixture = fixture.WithLoggerFactory(outputHelper.ToLoggerFactory());
         _fileSystem = _fixture.FileSystem;
@@ -78,8 +78,8 @@ public abstract class FileTests
         string? tempFilePath = _fileSystem.Path.Combine(_fixture.RootPath, $"deleteme {nameof(WriteAllTextAsyncShouldWork)} {DateTime.Now.ToFileTimeUtc()}.txt");
         Assert.False(_fileSystem.File.Exists(tempFilePath));
         string randomFileText = DateTime.Now.ToFileTimeUtc()+" "+Guid.NewGuid();
-        await _fileSystem.File.WriteAllTextAsync(tempFilePath, randomFileText);
-        Assert.Equal(randomFileText, await _fileSystem.File.ReadAllTextAsync(tempFilePath));
+        await _fileSystem.File.WriteAllTextAsync(tempFilePath, randomFileText, testCancellationToken);
+        Assert.Equal(randomFileText, await _fileSystem.File.ReadAllTextAsync(tempFilePath, testCancellationToken));
         _fileSystem.File.Delete(tempFilePath);
         Assert.False(_fileSystem.File.Exists(tempFilePath));
     }

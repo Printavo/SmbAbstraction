@@ -7,10 +7,10 @@ namespace InkSoft.SmbAbstraction;
 #if FEATURE_SERIALIZABLE
 [Serializable]
 #endif
-public class SmbFileVersionInfoFactory(IFileSystem fileSystem): IFileVersionInfoFactory
+public class SmbFileVersionInfoFactory(SmbFileSystem smbFileSystem): IFileVersionInfoFactory
 {
     /// <inheritdoc />
-    public IFileSystem FileSystem { get; } = fileSystem;
+    public IFileSystem FileSystem => smbFileSystem;
 
     /// <inheritdoc />
     public IFileVersionInfo GetVersionInfo(string fileName) => new FileVersionInfoWrapper(System.Diagnostics.FileVersionInfo.GetVersionInfo(fileName));

@@ -1,9 +1,8 @@
 using System;
-using Xunit;
-using System.Linq;
 using System.IO.Abstractions;
-using Xunit.Abstractions;
+using System.Linq;
 using System.Runtime.InteropServices;
+using Xunit;
 
 namespace InkSoft.SmbAbstraction.IntegrationTests.Directory;
 

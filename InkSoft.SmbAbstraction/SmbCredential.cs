@@ -2,10 +2,25 @@
 
 namespace InkSoft.SmbAbstraction;
 
-public class SmbCredential : ISmbCredential
+public interface ISmbCredential: IDisposable
+{
+    string Domain { get; }
+
+    string Username { get; }
+
+    string Password { get; }
+
+    string Host { get; }
+
+    string? ShareName { get; }
+
+    string Path { get; }
+}
+
+public class SmbCredential: ISmbCredential
 {
     private readonly ISmbCredentialProvider _credentialProvider;
-    
+
     public string Domain { get; }
 
     public string Username { get; }

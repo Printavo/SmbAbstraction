@@ -37,7 +37,7 @@ public abstract class StreamTests
         string? destinationFilePath = _fileSystem.Path.Combine(directory, tempFileName);
         fileInfo = fileInfo.CopyTo(destinationFilePath);
         Assert.True(fileInfo.Exists);
-            
+
         using (var stream = fileInfo.OpenRead())
         {
             Assert.Equal(stream.Length, fileSize);

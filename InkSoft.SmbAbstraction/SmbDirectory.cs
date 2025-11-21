@@ -1,31 +1,24 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using SMBLibrary;
+using SMBLibrary.Client;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
-using InkSoft.SmbAbstraction.Utilities;
-using Microsoft.Extensions.Logging;
-using SMBLibrary;
-using SMBLibrary.Client;
 
 namespace InkSoft.SmbAbstraction;
 
 public class SmbDirectory(
-    IFileSystem fileSystem,
-    ISmbClientFactory smbClientFactory,
-    ISmbCredentialProvider credentialProvider,
-    SmbFileSystemOptions? smbFileSystemOptions = null,
-    ILoggerFactory? loggerFactory = null) : DirectoryWrapper(new FileSystem()), IDirectory
+    SmbFileSystem smbFileSystem,
+    ILogger<SmbDirectory>? logger
+): DirectoryWrapper(smbFileSystem.NonSmbFileSystem), IDirectory
 {
     /// <inheritdoc cref="SmbFileSystem"/>
-    public new IFileSystem FileSystem => fileSystem;
+    public new IFileSystem FileSystem => smbFileSystem;
 
-    private readonly ILogger<SmbDirectory>? _logger = loggerFactory?.CreateLogger<SmbDirectory>();
-    
-    private readonly SmbFileSystemOptions _smbFileSystemOptions = smbFileSystemOptions ?? new();
-    
-    private SmbDirectoryInfoFactory DirectoryInfoFactory => (SmbDirectoryInfoFactory)fileSystem.DirectoryInfo;
+    private SmbDirectoryInfoFactory DirectoryInfoFactory => (SmbDirectoryInfoFactory)smbFileSystem.DirectoryInfo;
 
     public SMBTransportType Transport { get; set; } = SMBTransportType.DirectTCPTransport;
 
@@ -39,7 +32,7 @@ public class SmbDirectory(
         if (!path.TryResolveHostnameFromPath(out var ipAddress))
             throw new SmbException($"Failed to CreateDirectory {path}", new ArgumentException($"Unable to resolve \"{path.Hostname()}\""));
 
-        credential ??= credentialProvider.GetSmbCredential(path);
+        credential ??= smbFileSystem.CredentialProvider.GetSmbCredential(path);
 
         if (credential == null)
             throw new SmbException($"Failed to CreateDirectory {path}", new InvalidCredentialException($"Unable to find credential in SMBCredentialProvider for path: {path}"));
@@ -54,8 +47,8 @@ public class SmbDirectory(
         {
             string shareName = path.ShareName();
             string relativePath = path.ShareRelativePath();
-            _logger?.LogTrace("Trying to CreateDirectory {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
-            using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, smbFileSystemOptions);
+            logger?.LogTrace("Trying to CreateDirectory {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
+            using var connection = SmbConnection.CreateSmbConnection(smbFileSystem.ClientFactory, ipAddress, Transport, credential, smbFileSystem.Options);
             fileStore = connection.SmbClient.TreeConnect(shareName, out var status);
             status.AssertSuccess();
 
@@ -69,7 +62,7 @@ public class SmbDirectory(
             do
             {
                 if (status == NTStatus.STATUS_PENDING)
-                    _logger?.LogTrace("STATUS_PENDING while trying to create directory {path}. {stopwatchElapsedTotalSeconds}/{smbFileSystemOptionsClientSessionTimeout} seconds elapsed.", path, stopwatch.Elapsed.TotalSeconds, _smbFileSystemOptions.ClientSessionTimeout);
+                    logger?.LogTrace("STATUS_PENDING while trying to create directory {path}. {stopwatchElapsedTotalSeconds}/{smbFileSystemOptionsClientSessionTimeout} seconds elapsed.", path, stopwatch.Elapsed.TotalSeconds, smbFileSystem.Options.ClientSessionTimeout);
 
                 status = fileStore.CreateFile(out handle, out _, relativePath, c_syncAndMaxAllowed, 0, c_readWrite, c_fileOpenIf, c_fileSyncIoNonAlertOrDirectoryFile, null);
 
@@ -78,7 +71,7 @@ public class SmbDirectory(
                     CreateDirectory(path.GetParentPath(), credential);
                     status = fileStore.CreateFile(out handle, out _, relativePath, c_syncAndMaxAllowed, 0, c_readWrite, c_fileOpenIf, c_fileSyncIoNonAlertOrDirectoryFile, null);
                 }
-            } while (status == NTStatus.STATUS_PENDING && stopwatch.Elapsed.TotalSeconds <= _smbFileSystemOptions.ClientSessionTimeout);
+            } while (status == NTStatus.STATUS_PENDING && stopwatch.Elapsed.TotalSeconds <= smbFileSystem.Options.ClientSessionTimeout);
 
             stopwatch.Stop();
             status.AssertSuccess();
@@ -111,7 +104,7 @@ public class SmbDirectory(
         if (!Exists(path))
             return;
 
-        credential ??= credentialProvider.GetSmbCredential(path);
+        credential ??= smbFileSystem.CredentialProvider.GetSmbCredential(path);
 
         if (credential == null)
             throw new SmbException($"Failed to Delete {path}", new InvalidCredentialException($"Unable to find credential in SMBCredentialProvider for path: {path}"));
@@ -126,26 +119,23 @@ public class SmbDirectory(
         {
             string shareName = path.ShareName();
             string relativePath = path.ShareRelativePath();
-
-            _logger?.LogTrace("Trying to Delete {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
-
-            using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, smbFileSystemOptions);
+            logger?.LogTrace("Trying to Delete {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
+            using var connection = SmbConnection.CreateSmbConnection(smbFileSystem.ClientFactory, ipAddress, Transport, credential, smbFileSystem.Options);
             fileStore = connection.SmbClient.TreeConnect(shareName, out var status);
             status.AssertSuccess();
             const AccessMask c_syncOrDelete = AccessMask.SYNCHRONIZE | AccessMask.DELETE;
             const CreateOptions c_syncIoNonAlertOrDeleteOnClose = CreateOptions.FILE_SYNCHRONOUS_IO_NONALERT | CreateOptions.FILE_DELETE_ON_CLOSE;
 
             var stopwatch = new Stopwatch();
-
             stopwatch.Start();
             do
             {
                 if (status == NTStatus.STATUS_PENDING)
-                    _logger?.LogTrace("STATUS_PENDING while trying to delete directory {path}. {stopwatchElapsedTotalSeconds}/{smbFileSystemOptionsClientSessionTimeout} seconds elapsed.", path, stopwatch.Elapsed.TotalSeconds, _smbFileSystemOptions.ClientSessionTimeout);
+                    logger?.LogTrace("STATUS_PENDING while trying to delete directory {path}. {stopwatchElapsedTotalSeconds}/{smbFileSystemOptionsClientSessionTimeout} seconds elapsed.", path, stopwatch.Elapsed.TotalSeconds, smbFileSystem.Options.ClientSessionTimeout);
 
                 status = fileStore.CreateFile(out handle, out _, relativePath, c_syncOrDelete, 0, ShareAccess.Delete, CreateDisposition.FILE_OPEN, c_syncIoNonAlertOrDeleteOnClose, null);
             }
-            while (status == NTStatus.STATUS_PENDING && stopwatch.Elapsed.TotalSeconds <= _smbFileSystemOptions.ClientSessionTimeout);
+            while (status == NTStatus.STATUS_PENDING && stopwatch.Elapsed.TotalSeconds <= smbFileSystem.Options.ClientSessionTimeout);
             stopwatch.Stop();
 
             status.AssertSuccess();
@@ -180,7 +170,7 @@ public class SmbDirectory(
             if (!path.TryResolveHostnameFromPath(out var ipAddress))
                 throw new SmbException($"Failed to Delete {path}", new ArgumentException($"Unable to resolve \"{path.Hostname()}\""));
 
-            credential ??= credentialProvider.GetSmbCredential(path) ?? throw new SmbException($"Failed to delete {path}", new InvalidCredentialException($"Unable to find credential in SMBCredentialProvider for path: {path}"));
+            credential ??= smbFileSystem.CredentialProvider.GetSmbCredential(path) ?? throw new SmbException($"Failed to delete {path}", new InvalidCredentialException($"Unable to find credential in SMBCredentialProvider for path: {path}"));
 
             ISMBFileStore fileStore = null;
             object handle = null;
@@ -189,8 +179,8 @@ public class SmbDirectory(
             {
                 string shareName = path.ShareName();
                 string relativePath = path.ShareRelativePath();
-                _logger?.LogTrace("Trying to Delete {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
-                using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, smbFileSystemOptions);
+                logger?.LogTrace("Trying to Delete {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
+                using var connection = SmbConnection.CreateSmbConnection(smbFileSystem.ClientFactory, ipAddress, Transport, credential, smbFileSystem.Options);
                 fileStore = connection.SmbClient.TreeConnect(shareName, out var status);
                 status.AssertSuccess();
                 const AccessMask c_syncOrRead = AccessMask.SYNCHRONIZE | AccessMask.GENERIC_READ;
@@ -201,10 +191,10 @@ public class SmbDirectory(
                 do
                 {
                     if (status == NTStatus.STATUS_PENDING)
-                        _logger?.LogTrace("STATUS_PENDING while trying to delete directory {path}. {stopwatchElapsedTotalSeconds}/{smbFileSystemOptionsClientSessionTimeout} seconds elapsed.", path, stopwatch.Elapsed.TotalSeconds, _smbFileSystemOptions.ClientSessionTimeout);
+                        logger?.LogTrace("STATUS_PENDING while trying to delete directory {path}. {stopwatchElapsedTotalSeconds}/{smbFileSystemOptionsClientSessionTimeout} seconds elapsed.", path, stopwatch.Elapsed.TotalSeconds, smbFileSystem.Options.ClientSessionTimeout);
 
                     status = fileStore.CreateFile(out handle, out _, relativePath, c_syncOrRead, 0, ShareAccess.Delete, CreateDisposition.FILE_OPEN, c_syncIoNonAlertOrDirectoryFile, null);
-                } while (status == NTStatus.STATUS_PENDING && stopwatch.Elapsed.TotalSeconds <= _smbFileSystemOptions.ClientSessionTimeout);
+                } while (status == NTStatus.STATUS_PENDING && stopwatch.Elapsed.TotalSeconds <= smbFileSystem.Options.ClientSessionTimeout);
 
                 stopwatch.Stop();
                 status.AssertSuccess();
@@ -219,9 +209,9 @@ public class SmbDirectory(
                             continue;
 
                         if (fileDirectoryInformation.FileAttributes.HasFlag(SMBLibrary.FileAttributes.Directory))
-                            Delete(fileSystem.Path.Combine(path, fileDirectoryInformation.FileName), true, credential);
+                            Delete(smbFileSystem.Path.Combine(path, fileDirectoryInformation.FileName), true, credential);
 
-                        fileSystem.File.Delete(fileSystem.Path.Combine(path, fileDirectoryInformation.FileName));
+                        smbFileSystem.File.Delete(smbFileSystem.Path.Combine(path, fileDirectoryInformation.FileName));
                     }
                 }
 
@@ -258,7 +248,7 @@ public class SmbDirectory(
         if (!path.TryResolveHostnameFromPath(out var ipAddress))
             throw new SmbException($"Failed to EnumerateDirectories for {path}", new ArgumentException($"Unable to resolve \"{path.Hostname()}\""));
 
-        credential ??= credentialProvider.GetSmbCredential(path);
+        credential ??= smbFileSystem.CredentialProvider.GetSmbCredential(path);
 
         if (credential == null)
             throw new SmbException($"Failed to EnumerateDirectories for {path}", new InvalidCredentialException($"Unable to find credential in SMBCredentialProvider for path: {path}"));
@@ -270,14 +260,14 @@ public class SmbDirectory(
         {
             string shareName = path.ShareName();
             string relativePath = path.ShareRelativePath();
-            _logger?.LogTrace($"Trying to EnumerateDirectories {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}");
-            using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, smbFileSystemOptions);
+            logger?.LogTrace("Trying to EnumerateDirectories {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
+            using var connection = SmbConnection.CreateSmbConnection(smbFileSystem.ClientFactory, ipAddress, Transport, credential, smbFileSystem.Options);
             fileStore = connection.SmbClient.TreeConnect(shareName, out var status);
             status.AssertSuccess();
             status = fileStore.CreateFile(out handle, out _, relativePath, AccessMask.GENERIC_READ, 0, ShareAccess.Read, CreateDisposition.FILE_OPEN, CreateOptions.FILE_DIRECTORY_FILE, null);
             status.AssertSuccess();
             fileStore.QueryDirectory(out var queryDirectoryFileInformation, handle, searchPattern, FileInformationClass.FileDirectoryInformation);
-            _logger?.LogTrace($"Found {queryDirectoryFileInformation.Count} FileDirectoryInformation for {path}");
+            logger?.LogTrace("Found {queryDirectoryFileInformationCount} FileDirectoryInformation for {path}", queryDirectoryFileInformation.Count, path);
             var files = new List<string>();
 
             foreach (var file in queryDirectoryFileInformation)
@@ -290,13 +280,13 @@ public class SmbDirectory(
 
                     if (fileDirectoryInformation.FileAttributes.HasFlag(SMBLibrary.FileAttributes.Directory))
                     {
-                        files.Add(fileSystem.Path.Combine(path, fileDirectoryInformation.FileName));
+                        files.Add(smbFileSystem.Path.Combine(path, fileDirectoryInformation.FileName));
                         if (searchOption == SearchOption.AllDirectories)
-                            files.AddRange(EnumerateDirectories(fileSystem.Path.Combine(path, fileDirectoryInformation.FileName), searchPattern, searchOption, credential));
+                            files.AddRange(EnumerateDirectories(smbFileSystem.Path.Combine(path, fileDirectoryInformation.FileName), searchPattern, searchOption, credential));
                     }
                 }
             }
-            
+
             return files;
         }
         catch (Exception ex)
@@ -323,7 +313,7 @@ public class SmbDirectory(
         if (!path.TryResolveHostnameFromPath(out var ipAddress))
             throw new SmbException($"Failed to EnumerateFiles for {path}", new ArgumentException($"Unable to resolve \"{path.Hostname()}\""));
 
-        credential ??= credentialProvider.GetSmbCredential(path);
+        credential ??= smbFileSystem.CredentialProvider.GetSmbCredential(path);
 
         if (credential == null)
             throw new SmbException($"Failed to EnumerateFiles for {path}", new InvalidCredentialException($"Unable to find credential in SMBCredentialProvider for path: {path}"));
@@ -335,14 +325,14 @@ public class SmbDirectory(
         {
             string shareName = path.ShareName();
             string relativePath = path.ShareRelativePath();
-            _logger?.LogTrace("Trying to EnumerateFiles for {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
-            using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, smbFileSystemOptions);
+            logger?.LogTrace("Trying to EnumerateFiles for {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
+            using var connection = SmbConnection.CreateSmbConnection(smbFileSystem.ClientFactory, ipAddress, Transport, credential, smbFileSystem.Options);
             fileStore = connection.SmbClient.TreeConnect(shareName, out var status);
             status.AssertSuccess();
             status = fileStore.CreateFile(out handle, out _, relativePath, AccessMask.GENERIC_READ, 0, ShareAccess.Read, CreateDisposition.FILE_OPEN, CreateOptions.FILE_DIRECTORY_FILE, null);
             status.AssertSuccess();
             fileStore.QueryDirectory(out var queryDirectoryFileInformation, handle, searchPattern, FileInformationClass.FileDirectoryInformation);
-            _logger?.LogTrace("Found {queryDirectoryFileInformationCount} FileDirectoryInformation for {path}", queryDirectoryFileInformation.Count, path);
+            logger?.LogTrace("Found {queryDirectoryFileInformationCount} FileDirectoryInformation for {path}", queryDirectoryFileInformation.Count, path);
 
             var files = new List<string>();
 
@@ -357,11 +347,11 @@ public class SmbDirectory(
                     if (fileDirectoryInformation.FileAttributes.HasFlag(SMBLibrary.FileAttributes.Directory))
                     {
                         if (searchOption == SearchOption.AllDirectories)
-                            files.AddRange(EnumerateFiles(fileSystem.Path.Combine(path, fileDirectoryInformation.FileName), searchPattern, searchOption, credential));
+                            files.AddRange(EnumerateFiles(smbFileSystem.Path.Combine(path, fileDirectoryInformation.FileName), searchPattern, searchOption, credential));
                     }
                     else
                     {
-                        files.Add(fileSystem.Path.Combine(path, fileDirectoryInformation.FileName.RemoveLeadingAndTrailingSeparators()));
+                        files.Add(smbFileSystem.Path.Combine(path, fileDirectoryInformation.FileName.RemoveLeadingAndTrailingSeparators()));
                     }
                 }
             }
@@ -382,7 +372,7 @@ public class SmbDirectory(
     public override IEnumerable<string> EnumerateFileSystemEntries(string path) => path.IsSharePath() ? EnumerateFileSystemEntries(path, "*") : base.EnumerateFileSystemEntries(path);
 
     public override IEnumerable<string> EnumerateFileSystemEntries(string path, string searchPattern) => path.IsSharePath() ? EnumerateFileSystemEntries(path, searchPattern, SearchOption.TopDirectoryOnly) : base.EnumerateFileSystemEntries(path, searchPattern);
-    
+
     public override IEnumerable<string> EnumerateFileSystemEntries(string path, string searchPattern, SearchOption searchOption) => EnumerateFileSystemEntries(path, searchPattern, searchOption, null);
 
     private IEnumerable<string> EnumerateFileSystemEntries(string path, string searchPattern, SearchOption searchOption, ISmbCredential? credential)
@@ -393,7 +383,7 @@ public class SmbDirectory(
         if (!path.TryResolveHostnameFromPath(out var ipAddress))
             throw new SmbException($"Failed to EnumerateFileSystemEntries for {path}", new ArgumentException($"Unable to resolve \"{path.Hostname()}\""));
 
-        credential ??= credentialProvider.GetSmbCredential(path);
+        credential ??= smbFileSystem.CredentialProvider.GetSmbCredential(path);
 
         if (credential == null)
             throw new SmbException($"Failed to EnumerateFileSystemEntries for {path}", new InvalidCredentialException($"Unable to find credential in SMBCredentialProvider for path: {path}"));
@@ -405,14 +395,14 @@ public class SmbDirectory(
         {
             string shareName = path.ShareName();
             string relativePath = path.ShareRelativePath();
-            _logger?.LogTrace("Trying to EnumerateFileSystemEntries {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
-            using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, smbFileSystemOptions);
+            logger?.LogTrace("Trying to EnumerateFileSystemEntries {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
+            using var connection = SmbConnection.CreateSmbConnection(smbFileSystem.ClientFactory, ipAddress, Transport, credential, smbFileSystem.Options);
             fileStore = connection.SmbClient.TreeConnect(shareName, out var ntStatus);
             ntStatus.AssertSuccess();
             ntStatus = fileStore.CreateFile(out handle, out _, relativePath, AccessMask.GENERIC_READ, 0, ShareAccess.Read, CreateDisposition.FILE_OPEN, CreateOptions.FILE_DIRECTORY_FILE, null);
             ntStatus.AssertSuccess();
             fileStore.QueryDirectory(out var queryDirectoryFileInformation, handle, searchPattern, FileInformationClass.FileDirectoryInformation);
-            _logger?.LogTrace("Found {queryDirectoryFileInformation.Count} FileDirectoryInformation for {path}", queryDirectoryFileInformation.Count, path);
+            logger?.LogTrace("Found {queryDirectoryFileInformation.Count} FileDirectoryInformation for {path}", queryDirectoryFileInformation.Count, path);
 
             var files = new List<string>();
 
@@ -425,9 +415,9 @@ public class SmbDirectory(
                         continue;
 
                     if (fileDirectoryInformation.FileAttributes.HasFlag(SMBLibrary.FileAttributes.Directory) && searchOption == SearchOption.AllDirectories)
-                        files.AddRange(EnumerateFileSystemEntries(fileSystem.Path.Combine(path, fileDirectoryInformation.FileName), searchPattern, searchOption, credential));
+                        files.AddRange(EnumerateFileSystemEntries(smbFileSystem.Path.Combine(path, fileDirectoryInformation.FileName), searchPattern, searchOption, credential));
 
-                    files.Add(fileSystem.Path.Combine(path, fileDirectoryInformation.FileName));
+                    files.Add(smbFileSystem.Path.Combine(path, fileDirectoryInformation.FileName));
                 }
             }
 
@@ -449,7 +439,7 @@ public class SmbDirectory(
             return base.Exists(path);
 
         // TBD: At one point, we had to check for the presence of a file with the given path to be sure, but it may or may not be necessary since Adam did some additional refactoring.
-        if (fileSystem.File.Exists(path))
+        if (smbFileSystem.File.Exists(path))
             return false;
 
         ISMBFileStore? fileStore = null;
@@ -459,20 +449,20 @@ public class SmbDirectory(
         {
             if (!path.TryResolveHostnameFromPath(out var ipAddress))
                 throw new SmbException($"Failed to determine if {path} exists", new ArgumentException($"Unable to resolve \"{path.Hostname()}\""));
-            
+
             string sharePath = path.SharePath();
 
             // SMBLibrary (or maybe some SMB servers?) don't seem to like forward slashes in the path, so we're replacing them with backslashes.
             string shareRelativePath = path[sharePath.Length..].Replace("/", "\\");
 
-            _logger?.LogTrace("Trying to determine if {{shareRelativePath: {shareRelativePath}}} exists as a dir for {{sharePath: {sharePath}}}", shareRelativePath, sharePath);
+            logger?.LogTrace("Trying to determine if {{shareRelativePath: {shareRelativePath}}} exists as a dir for {{sharePath: {sharePath}}}", shareRelativePath, sharePath);
 
             using var smbConnection = SmbConnection.CreateSmbConnection(
-                smbClientFactory,
+                smbFileSystem.ClientFactory,
                 ipAddress,
                 Transport,
-                credentialProvider.GetSmbCredential(path) ?? throw new SmbException($"Failed to determine if {path} exists because there is no corresponding credential logged with the CredentialProvider."),
-                smbFileSystemOptions
+                smbFileSystem.CredentialProvider.GetSmbCredential(path) ?? throw new SmbException($"Failed to determine if {path} exists because there is no corresponding credential logged with the CredentialProvider."),
+                smbFileSystem.Options
             );
             fileStore = smbConnection.SmbClient.TreeConnect(path.ShareName(), out var ntStatus);
             ntStatus.AssertSuccess();
@@ -487,7 +477,7 @@ public class SmbDirectory(
         catch (Exception ex)
         {
             // TBD: Should we really be returning false instead of throwing?
-            _logger?.LogError(ex, "Failed to determine if {path} exists.", path);
+            logger?.LogError(ex, "Failed to determine if {path} exists.", path);
             return false;
         }
         finally
@@ -506,7 +496,7 @@ public class SmbDirectory(
 
     public override string[] GetDirectories(string path, string searchPattern, SearchOption searchOption) => path.IsSharePath() ? EnumerateDirectories(path, searchPattern, searchOption).ToArray() : base.GetDirectories(path, searchPattern, searchOption);
 
-    public override string GetDirectoryRoot(string path) => path.IsSharePath() ? fileSystem.Path.GetPathRoot(path)! : base.GetDirectoryRoot(path);
+    public override string GetDirectoryRoot(string path) => path.IsSharePath() ? smbFileSystem.Path.GetPathRoot(path)! : base.GetDirectoryRoot(path);
 
     public override string[] GetFiles(string path) => path.IsSharePath() ? GetFiles(path, "*") : base.GetFiles(path);
 
@@ -534,17 +524,17 @@ public class SmbDirectory(
 
     private void Move(string sourceDirName, string destDirName, ISmbCredential? sourceCredential, ISmbCredential? destinationCredential)
     {
-        sourceCredential ??= credentialProvider.GetSmbCredential(sourceDirName);
-        destinationCredential ??= credentialProvider.GetSmbCredential(destDirName);
+        sourceCredential ??= smbFileSystem.CredentialProvider.GetSmbCredential(sourceDirName);
+        destinationCredential ??= smbFileSystem.CredentialProvider.GetSmbCredential(destDirName);
         CreateDirectory(destDirName, destinationCredential);
 
         foreach (string? dir in EnumerateDirectories(sourceDirName, "*", SearchOption.TopDirectoryOnly, sourceCredential))
-            Move(dir, fileSystem.Path.Combine(destDirName, new Uri(dir).Segments.Last()), sourceCredential, destinationCredential);
+            Move(dir, smbFileSystem.Path.Combine(destDirName, new Uri(dir).Segments.Last()), sourceCredential, destinationCredential);
 
         foreach (string? file in EnumerateFiles(sourceDirName, "*", SearchOption.TopDirectoryOnly, sourceCredential))
         {
-            string? destFilePath = fileSystem.Path.Combine(destDirName, new Uri(file).Segments.Last());
-            var smbFile = (SmbFile)fileSystem.File;
+            string? destFilePath = smbFileSystem.Path.Combine(destDirName, new Uri(file).Segments.Last());
+            var smbFile = (SmbFile)smbFileSystem.File;
             smbFile.Move(file, destFilePath, sourceCredential, destinationCredential);
         }
     }

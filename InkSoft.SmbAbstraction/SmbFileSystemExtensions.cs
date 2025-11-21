@@ -14,12 +14,12 @@ public static class SmbFileSystemExtensions
     {
         var fileSystem = directory.FileSystem;
         logger ??= (fileSystem as SmbFileSystem)?.LoggerFactory?.CreateLogger(nameof(SmbFileSystemExtensions));
-        
+
         // TBD: Should we ensure path format here by calling Path.GetFullPath()? It may or may not do what we want with UNC on Linux.
         sourcePath = sourcePath.RemoveTrailingSeparators();
         destinationPath = destinationPath.RemoveTrailingSeparators();
         logger?.LogTrace("Copying {sourcePath} contents to {destinationPath}; overwriteExistingFiles: {overwriteExistingFiles}...", sourcePath, destinationPath, overwriteExistingFiles);
-        
+
         if (!directory.Exists(sourcePath))
         {
             logger?.LogError("Missing source folder: {sourcePath}", sourcePath);
@@ -28,7 +28,7 @@ public static class SmbFileSystemExtensions
 
         // In the case of multiple nested folders, we only need to check the furthest nested folders with CreateDirectory because checking any intermediate parents is redundant.
         var furthestNestedFolders = directory.GetDirectories(sourcePath, "*", System.IO.SearchOption.AllDirectories).Select(p => p[(sourcePath.Length+1)..]).ToList();
-        
+
         // Need to cache with ToArray so we don't modify the collection we're iterating over.
         foreach (string subFolder in furthestNestedFolders.ToArray())
         {
@@ -36,7 +36,7 @@ public static class SmbFileSystemExtensions
             if (furthestNestedFolders.Any(f => f.StartsWith(subFolder+"\\")))
                 furthestNestedFolders.Remove(subFolder);
         }
-        
+
         foreach (string furthestNestedPath in furthestNestedFolders.Select(p => fileSystem.Path.Combine(destinationPath, p)))
         {
             try

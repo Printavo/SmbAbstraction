@@ -6,7 +6,7 @@ using System.Security.AccessControl;
 
 namespace InkSoft.SmbAbstraction;
 
-internal sealed class SmbFileStreamWrapper(FileStream fileStream) : FileSystemStream(fileStream, fileStream.Name, fileStream.IsAsync), IFileSystemAclSupport
+internal sealed class SmbFileStreamWrapper(FileStream fileStream): FileSystemStream(fileStream, fileStream.Name, fileStream.IsAsync), IFileSystemAclSupport
 {
     /// <inheritdoc cref="IFileSystemAclSupport.GetAccessControl()" />
     [SupportedOSPlatform("windows")]
@@ -25,7 +25,4 @@ internal sealed class SmbFileStreamWrapper(FileStream fileStream) : FileSystemSt
         else
             throw new ArgumentException("value must be of type `FileSecurity`");
     }
-
-    /// <inheritdoc />
-    public override void Flush(bool flushToDisk) => fileStream.Flush(flushToDisk);
 }

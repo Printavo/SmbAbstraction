@@ -23,25 +23,25 @@ public abstract class TestFixture : IDisposable
 
     public ILoggerFactory LoggerFactory { get; set; }
 
-    public IFileSystem FileSystem { get; set; }
+    public SmbFileSystem FileSystem { get; set; }
 
     public ISmbCredentialProvider SmbCredentialProvider { get; }
 
     public ISmbClientFactory SmbClientFactory { get; }
-    
+
     public abstract string LocalTempDirectory { get; }
-    
+
     public abstract ShareCredentials ShareCredentials { get; }
-    
+
     public abstract string ShareName { get; }
-    
+
     public abstract string RootPath { get; }
-    
+
     public abstract List<string> Files { get; }
-    
+
     public abstract List<string> Directories { get; }
-    
+
     public abstract PathType PathType { get; }
-    
+
     public virtual void Dispose(){}
 }

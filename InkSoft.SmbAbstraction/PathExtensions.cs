@@ -26,7 +26,7 @@ public static class PathExtensions
     /// Only goes so far as to confirm it starts with \\ or smb://.
     /// </summary>
     public static bool IsSharePath([NotNullWhen(true)] this string? path) => IsUncPath(path) || IsSmbUri(path);
-    
+
     /// <summary>
     /// Only goes so far as to confirm it starts with smb://.
     /// </summary>
@@ -47,7 +47,7 @@ internal static class PathExtensionsInternal
 
     public static string Hostname(this string path)
     {
-        try 
+        try
         {
             return new Uri(path).Host;
         }
@@ -84,7 +84,7 @@ internal static class PathExtensionsInternal
     public static string? ShareName(this string path)
     {
         var uri = new Uri(path);
-        
+
         // First segment is root "/", so share names are the second segment.
         return uri.Segments.Length > 1 ? uri.Segments[1].RemoveAnySeparators() : null;
     }
@@ -95,10 +95,10 @@ internal static class PathExtensionsInternal
     public static string SharePath(this string path)
     {
         var uri = new Uri(path);
-        
+
         if (uri.Scheme == "smb")
             return $"smb://{uri.Host}/{uri.Segments[1].RemoveAnySeparators()}/";
-        
+
         if (uri.IsUnc)
             return @$"\\{uri.Host}\{uri.Segments[1].RemoveAnySeparators()}\";
 
@@ -113,7 +113,7 @@ internal static class PathExtensionsInternal
         string sharePath = path.SharePath();
         return path.Length <= sharePath.Length ? string.Empty : path[sharePath.Length..].RemoveTrailingSeparators().Replace("/", "\\");
     }
-    
+
     public static string GetParentPath(this string path)
     {
         var pathUri = new Uri(path);
@@ -144,11 +144,11 @@ internal static class PathExtensionsInternal
     {
         if (path.IsUncPath())
             return path.BackSlash();
-        
+
         return path.IsSmbUri() ? path.ForwardSlash() : path;
     }
 
     private static readonly string[] s_stringPathSeparators = [@"\", "/"];
-    
+
     internal static string RemoveAnySeparators(this string path) => s_stringPathSeparators.Aggregate(path, (current, pathSeparator) => current.Replace(pathSeparator, ""));
 }

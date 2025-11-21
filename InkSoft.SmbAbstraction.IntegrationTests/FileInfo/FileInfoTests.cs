@@ -3,7 +3,6 @@ using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace InkSoft.SmbAbstraction.IntegrationTests.FileInfo;
 
@@ -50,7 +49,7 @@ public abstract class FileInfoTests
 
         var fileInfo = _fileSystem.FileInfo.New(tempFilePath);
         fileInfo = fileInfo.CopyTo(_fileSystem.Path.Combine(directory, tempFileName));
-            
+
         Assert.True(fileInfo.Exists);
 
         _fileSystem.File.Delete(tempFilePath);
@@ -80,7 +79,7 @@ public abstract class FileInfoTests
 
         string? destinationFilePath = _fileSystem.Path.Combine(directory, tempFileName);
         fileInfo = fileInfo.CopyTo(destinationFilePath);
-            
+
         Assert.True(fileInfo.Exists);
         Assert.Equal(fileSize, fileInfo.Length);
 

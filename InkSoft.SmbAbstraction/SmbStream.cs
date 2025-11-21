@@ -7,28 +7,28 @@ using System.IO.Abstractions;
 
 namespace InkSoft.SmbAbstraction;
 
-public class SmbFsStream(ISMBFileStore fileStore, object fileHandle, SmbConnection connection, long fileLength, SmbFileSystemOptions? smbFileSystemOptions, string path, bool isAsync) : FileSystemStream(new SmbStream(fileStore, fileHandle, connection, fileLength, smbFileSystemOptions), path, isAsync);
+public class SmbFsStream(ISMBFileStore fileStore, object fileHandle, SmbConnection connection, long fileLength, SmbFileSystemOptions? smbFileSystemOptions, string path, bool isAsync): FileSystemStream(new SmbStream(fileStore, fileHandle, connection, fileLength, smbFileSystemOptions), path, isAsync);
 
-public class SmbStream : Stream
+public class SmbStream: Stream
 {
     private readonly SmbFileSystemOptions _smbFileSystemOptions;
-    
+
     private readonly ISMBFileStore _fileStore;
-    
+
     private readonly object _fileHandle;
-    
+
     private readonly SmbConnection _connection;
 
     public override bool CanRead => true;
-    
+
     public override bool CanSeek => true;
-    
+
     public override bool CanWrite => true;
-    
+
     private readonly int _maxReadSize;
-    
+
     private readonly int _maxWriteSize;
-    
+
     /// <remarks>
     /// TODO: Should we get this value from _smbFileSystemOptions?
     /// </remarks>
@@ -61,7 +61,7 @@ public class SmbStream : Stream
     {
         NTStatus ntStatus;
         var stopwatch = new Stopwatch();
-            
+
         stopwatch.Start();
 
         do
@@ -204,7 +204,7 @@ public class SmbStream : Stream
             status = _fileStore.WriteFile(out bytesWritten, _fileHandle, _position, data);
         } while (status == NTStatus.STATUS_PENDING && stopwatch.Elapsed.TotalSeconds <= _smbFileSystemOptions.ClientSessionTimeout);
         stopwatch.Stop();
-            
+
         status.AssertSuccess();
 
         _position += bytesWritten;
@@ -220,7 +220,7 @@ public class SmbStream : Stream
         catch
         {
         }
-        
+
         _connection.Dispose();
         base.Dispose(disposing);
     }
@@ -234,11 +234,11 @@ public class SmbStream : Stream
     {
         if (bufferSize == 0 || bufferSize > MaxBufferSize)
             bufferSize = MaxBufferSize;
-        
+
         int count;
         byte[] buffer = new byte[bufferSize];
 
-        while ((count = this.Read(buffer, 0, buffer.Length)) != 0)
+        while ((count = Read(buffer, 0, buffer.Length)) != 0)
             destination.Write(buffer, 0, count);
     }
 }

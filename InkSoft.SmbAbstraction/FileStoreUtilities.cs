@@ -1,6 +1,6 @@
 ﻿using SMBLibrary.Client;
 
-namespace InkSoft.SmbAbstraction.Utilities;
+namespace InkSoft.SmbAbstraction;
 
 internal static class FileStoreUtilities
 {

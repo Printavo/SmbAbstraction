@@ -5,16 +5,16 @@ namespace InkSoft.SmbAbstraction.Tests.Path;
 
 public class CredentialTests
 {
-    private readonly string _domain = "domain";
-    private readonly string _userName = "user";
-    private readonly string _path = "\\\\host\\sharename";
+    private const string c_domain = "domain";
+    private const string c_userName = "user";
+    private const string c_path = "\\\\host\\sharename";
 
     [Fact]
     public void SetDomainNameFromUserNameIfNull()
     {
-        var credential = SmbCredential.AddToProvider(null, $"{_domain}\\{_userName}", "password", _path, A.Fake<ISmbCredentialProvider>()); 
-        Assert.Equal(_domain, credential.Domain);
-        Assert.Equal(_userName, credential.Username);
+        var credential = SmbCredential.AddToProvider(null, $"{c_domain}\\{c_userName}", "password", c_path, A.Fake<ISmbCredentialProvider>());
+        Assert.Equal(c_domain, credential.Domain);
+        Assert.Equal(c_userName, credential.Username);
     }
 
     [Fact]
@@ -24,7 +24,7 @@ public class CredentialTests
         string? userName = "user";
         string? combinedUserName = $"{domain}\\{userName}";
 
-        var credential = SmbCredential.AddToProvider(domain, combinedUserName, "password", _path, A.Fake<ISmbCredentialProvider>()); 
+        var credential = SmbCredential.AddToProvider(domain, combinedUserName, "password", c_path, A.Fake<ISmbCredentialProvider>());
         Assert.Equal(domain, credential.Domain);
         Assert.Equal(combinedUserName, credential.Username);
     }

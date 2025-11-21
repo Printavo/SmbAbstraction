@@ -4,17 +4,28 @@ using System.Threading;
 
 namespace InkSoft.SmbAbstraction;
 
-public class SmbCredentialProvider : ISmbCredentialProvider
+public interface ISmbCredentialProvider
+{
+    ISmbCredential? GetSmbCredential(string path);
+
+    /// <summary>
+    /// A shallow copy of the internally stored credential list.
+    /// </summary>
+    ISmbCredential[] GetSmbCredentials();
+
+    /// <summary>
+    /// You need not call this method directly in most cases. Instead, pass this <see cref="ISmbCredentialProvider"/> to <see cref="SmbCredential.AddToProvider"/>.
+    /// </summary>
+    void AddSmbCredential(ISmbCredential credential);
+
+    void RemoveSmbCredential(ISmbCredential credential);
+}
+
+public class SmbCredentialProvider: ISmbCredentialProvider
 {
     private readonly List<ISmbCredential> _credentials = [];
-    
-    private static readonly
-#if NET9_0_OR_GREATER
-        Lock
-#else
-        object
-#endif
-        s_credentialsLock = new();
+
+    private static readonly Lock s_credentialsLock = new();
 
     /// <inheritdoc/>
     public ISmbCredential? GetSmbCredential(string path)

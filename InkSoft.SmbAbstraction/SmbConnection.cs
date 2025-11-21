@@ -2,29 +2,26 @@
 using SMBLibrary.Client;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Threading;
 
 namespace InkSoft.SmbAbstraction;
 
-public class SmbConnection : IDisposable
+/// <summary>
+/// There seems to be some remaining problems with this class that will reduce app stability. It needs a refactor.
+/// </summary>
+public class SmbConnection: IDisposable
 {
     private static readonly Dictionary<int, Dictionary<IPAddress, SmbConnection>> s_instances = new();
-    
-    
-    private static readonly
-#if NET9_0_OR_GREATER
-        Lock
-#else
-        object
-#endif
-        s_connectionLock = new();
+
+    private static readonly Lock s_connectionLock = new();
 
     private readonly IPAddress _address;
-    
+
     private readonly SMBTransportType _transport;
-    
+
     private readonly ISmbCredential _credential;
 
     private long _referenceCount = 1;
@@ -61,13 +58,6 @@ public class SmbConnection : IDisposable
 
     public static SmbConnection CreateSmbConnectionForStream(ISmbClientFactory smbClientFactory, IPAddress address, SMBTransportType transport, ISmbCredential credential, SmbFileSystemOptions? smbFileSystemOptions)
     {
-#if NET8_0_OR_GREATER
-            ArgumentNullException.ThrowIfNull(credential, nameof(credential));
-#else
-            if (credential == null)
-                throw new ArgumentNullException(nameof(credential));
-#endif
-
         // Create new connection
         var instance = new SmbConnection(smbClientFactory, address, transport, credential, -1, smbFileSystemOptions);
         instance.Connect();
@@ -76,13 +66,6 @@ public class SmbConnection : IDisposable
 
     public static SmbConnection CreateSmbConnection(ISmbClientFactory smbClientFactory, IPAddress address, SMBTransportType transport, ISmbCredential credential, SmbFileSystemOptions? smbFileSystemOptions)
     {
-#if NET8_0_OR_GREATER
-            ArgumentNullException.ThrowIfNull(credential, nameof(credential));
-#else
-            if (credential == null)
-                throw new ArgumentNullException(nameof(credential));
-#endif
-
         int threadId = Environment.CurrentManagedThreadId;
 
         lock (s_connectionLock)
@@ -105,7 +88,7 @@ public class SmbConnection : IDisposable
                 instance.Dispose();
 
                 if (!s_instances.ContainsKey(threadId))
-                    s_instances.Add(threadId, new());
+                    s_instances.Add(threadId, []);
             }
 
             // Create new connection
@@ -120,11 +103,14 @@ public class SmbConnection : IDisposable
 
     public void Dispose()
     {
-        lock (s_connectionLock)
-        {
-            if (_isDisposed)
-                return;
+        if (_isDisposed)
+            return;
 
+        if (!s_connectionLock.TryEnter(15000))
+            throw new TimeoutException("Failed to acquire SMB connection lock during disposal.");
+
+        try
+        {
             if (_referenceCount == 1)
             {
                 try
@@ -134,7 +120,7 @@ public class SmbConnection : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine(ex.Message);
+                    Trace.TraceError(ex.Message);
                 }
                 finally
                 {
@@ -152,6 +138,10 @@ public class SmbConnection : IDisposable
             {
                 _referenceCount -= 1;
             }
+        }
+        finally
+        {
+            s_connectionLock.Exit();
         }
 
         GC.SuppressFinalize(this);

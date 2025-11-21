@@ -42,8 +42,8 @@ public class Share
     }
 }
 
-public enum PathType 
-{ 
+public enum PathType
+{
     SmbUri,
     UncPath,
     HostFileSystem

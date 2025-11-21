@@ -1,14 +1,12 @@
-﻿using System.IO.Abstractions;
-using System.Linq;
+﻿using System.Linq;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace InkSoft.SmbAbstraction.IntegrationTests.DriveInfo;
 
 public abstract class DriveInfoTests
 {
     readonly TestFixture _fixture;
-    private IFileSystem _fileSystem;
+    private readonly SmbFileSystem _fileSystem;
 
     public DriveInfoTests(TestFixture fixture, ITestOutputHelper outputHelper)
     {
@@ -21,7 +19,7 @@ public abstract class DriveInfoTests
     {
         var credentials = _fixture.ShareCredentials;
         _fixture.SmbCredentialProvider.AddSmbCredential(SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, _fixture.RootPath, _fixture.SmbCredentialProvider));
-        var smbDriveInfoFactory = new SmbDriveInfoFactory(_fileSystem, _fixture.SmbClientFactory, _fixture.SmbCredentialProvider, new());
+        var smbDriveInfoFactory = new SmbDriveInfoFactory(_fileSystem, null);
         var shareInfo = smbDriveInfoFactory.New(_fixture.RootPath);
         Assert.NotNull(shareInfo);
     }
@@ -32,7 +30,7 @@ public abstract class DriveInfoTests
         var credentials = _fixture.ShareCredentials;
         string? fileName = _fileSystem.Path.Combine(_fixture.RootPath, _fixture.Files.First());
         _fixture.SmbCredentialProvider.AddSmbCredential(SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, fileName, _fixture.SmbCredentialProvider));
-        var smbDriveInfoFactory = new SmbDriveInfoFactory(_fileSystem, _fixture.SmbClientFactory, _fixture.SmbCredentialProvider, new());
+        var smbDriveInfoFactory = new SmbDriveInfoFactory(_fileSystem, null);
         var shareInfo = smbDriveInfoFactory.New(fileName);
         Assert.NotNull(shareInfo);
     }
@@ -43,7 +41,7 @@ public abstract class DriveInfoTests
         var credentials = _fixture.ShareCredentials;
         string? directory = _fileSystem.Path.Combine(_fixture.RootPath, _fixture.Directories.First());
         _fixture.SmbCredentialProvider.AddSmbCredential(SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, directory, _fixture.SmbCredentialProvider));
-        var smbDriveInfoFactory = new SmbDriveInfoFactory(_fileSystem, _fixture.SmbClientFactory, _fixture.SmbCredentialProvider, new());
+        var smbDriveInfoFactory = new SmbDriveInfoFactory(_fileSystem, null);
         var shareInfo = smbDriveInfoFactory.New(directory);
         Assert.NotNull(shareInfo);
     }
@@ -53,7 +51,7 @@ public abstract class DriveInfoTests
     {
         var credentials = _fixture.ShareCredentials;
         _fixture.SmbCredentialProvider.AddSmbCredential(SmbCredential.AddToProvider(credentials.Domain, credentials.Username, credentials.Password, _fixture.RootPath, _fixture.SmbCredentialProvider));
-        var smbDriveInfoFactory = new SmbDriveInfoFactory(_fileSystem, _fixture.SmbClientFactory, _fixture.SmbCredentialProvider, new());
+        var smbDriveInfoFactory = new SmbDriveInfoFactory(_fileSystem, null);
         var shares = smbDriveInfoFactory.GetDrives();
         Assert.NotNull(shares);
     }
@@ -62,7 +60,7 @@ public abstract class DriveInfoTests
     public void GetDrives_WithNoCredentials_ReturnsNotNull()
     {
         var credentials = _fixture.ShareCredentials;
-        var smbDriveInfoFactory = new SmbDriveInfoFactory(_fileSystem, _fixture.SmbClientFactory, _fixture.SmbCredentialProvider, new());
+        var smbDriveInfoFactory = new SmbDriveInfoFactory(_fileSystem, null);
         var shares = smbDriveInfoFactory.GetDrives();
         Assert.NotNull(shares);
     }

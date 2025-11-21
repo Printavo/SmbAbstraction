@@ -1,5 +1,4 @@
-﻿using InkSoft.SmbAbstraction.Utilities;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using SMBLibrary;
 using SMBLibrary.Client;
 using System;
@@ -9,20 +8,16 @@ using System.IO.Abstractions;
 namespace InkSoft.SmbAbstraction;
 
 public class SmbFileInfoFactory(
-    IFileSystem fileSystem,
-    ISmbClientFactory smbClientFactory,
-    ISmbCredentialProvider credentialProvider,
-    SmbFileSystemOptions? smbFileSystemOptions,
-    ILoggerFactory? loggerFactory = null) : IFileInfoFactory
+    SmbFileSystem smbFileSystem,
+    ILogger<SmbFileInfoFactory>? logger
+): IFileInfoFactory
 {
     /// <inheritdoc cref="SmbFileSystem"/>
-    public IFileSystem FileSystem => fileSystem;
+    public IFileSystem FileSystem => smbFileSystem;
 
-    private readonly ILogger<SmbFileInfoFactory>? _logger = loggerFactory?.CreateLogger<SmbFileInfoFactory>();
-    
     public SMBTransportType Transport { get; set; } = SMBTransportType.DirectTCPTransport;
 
-    public IFileInfo New(string fileName) => fileName.IsSharePath() ? New(fileName, null) : new SmbFileInfo(FileSystem, new FileInfo(fileName));
+    public IFileInfo New(string fileName) => fileName.IsSharePath() ? New(fileName, null) : new SmbFileInfo(smbFileSystem, new FileInfo(fileName));
 
     internal IFileInfo New(string path, ISmbCredential? credential)
     {
@@ -33,7 +28,7 @@ public class SmbFileInfoFactory(
         if (!path.TryResolveHostnameFromPath(out var ipAddress))
             throw new SmbException($"Failed FromFileName for {path}", new ArgumentException($"Unable to resolve \"{path.Hostname()}\""));
 
-        credential ??= credentialProvider.GetSmbCredential(path);
+        credential ??= smbFileSystem.CredentialProvider.GetSmbCredential(path);
 
         if (credential == null)
             throw new SmbException($"Failed FromFileName for {path}", new InvalidCredentialException($"Unable to find credential for path: {path}"));
@@ -45,8 +40,8 @@ public class SmbFileInfoFactory(
         {
             string shareName = path.ShareName();
             string relativePath = path.ShareRelativePath();
-            _logger?.LogTrace("Trying FromFileName {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
-            using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, smbFileSystemOptions);
+            logger?.LogTrace("Trying FromFileName {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
+            using var connection = SmbConnection.CreateSmbConnection(smbFileSystem.ClientFactory, ipAddress, Transport, credential, smbFileSystem.Options);
             fileStore = connection.SmbClient.TreeConnect(shareName, out var status);
             status.AssertSuccess();
 
@@ -64,7 +59,7 @@ public class SmbFileInfoFactory(
             status.AssertSuccess();
             FileStoreUtilities.CloseFile(fileStore, ref handle);
 
-            return new SmbFileInfo(FileSystem, path, (FileBasicInformation)fileBasicInfo, (FileStandardInformation)fileStandardInfo, credential);
+            return new SmbFileInfo(smbFileSystem, path, (FileBasicInformation)fileBasicInfo, (FileStandardInformation)fileStandardInfo, credential);
         }
         catch (Exception ex)
         {
@@ -83,7 +78,7 @@ public class SmbFileInfoFactory(
         if (!path.TryResolveHostnameFromPath(out var ipAddress))
             throw new SmbException($"Failed to SaveFileInfo for {path}", new ArgumentException($"Unable to resolve \"{path.Hostname()}\""));
 
-        credential ??= credentialProvider.GetSmbCredential(path);
+        credential ??= smbFileSystem.CredentialProvider.GetSmbCredential(path);
 
         if (credential == null)
             throw new SmbException($"Failed to SaveFileInfo for {path}", new InvalidCredentialException($"Unable to find credential for path: {path}"));
@@ -95,8 +90,8 @@ public class SmbFileInfoFactory(
         {
             string shareName = path.ShareName();
             string relativePath = path.ShareRelativePath();
-            _logger?.LogTrace("Trying to SaveFileInfo {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
-            using var connection = SmbConnection.CreateSmbConnection(smbClientFactory, ipAddress, Transport, credential, smbFileSystemOptions);
+            logger?.LogTrace("Trying to SaveFileInfo {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
+            using var connection = SmbConnection.CreateSmbConnection(smbFileSystem.ClientFactory, ipAddress, Transport, credential, smbFileSystem.Options);
             fileStore = connection.SmbClient.TreeConnect(shareName, out var status);
             status.AssertSuccess();
 
@@ -121,5 +116,5 @@ public class SmbFileInfoFactory(
         }
     }
 
-    public IFileInfo Wrap(FileInfo fileInfo) => fileSystem.FileInfo.Wrap(fileInfo);
+    public IFileInfo Wrap(FileInfo fileInfo) => smbFileSystem.FileInfo.Wrap(fileInfo);
 }

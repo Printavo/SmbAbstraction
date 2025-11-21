@@ -7,35 +7,32 @@ using System.IO;
 
 namespace InkSoft.SmbAbstraction;
 
-public class SmbDirectoryInfo(string fileName, IFileSystem fileSystem, ISmbCredentialProvider credentialProvider) : DirectoryInfoWrapper(new FileSystem(), new(fileName)), IDirectoryInfo
+public class SmbDirectoryInfo(SmbFileSystem smbFileSystem, string fileName): DirectoryInfoWrapper(smbFileSystem.NonSmbFileSystem, new(fileName)), IDirectoryInfo
 {
-    private SmbDirectory SmbDirectory => (SmbDirectory)_fileSystem.Directory;
-    
-    private SmbFile SmbFile => (SmbFile)_fileSystem.File;
-    
-    private SmbDirectoryInfoFactory DirectoryInfoFactory => (SmbDirectoryInfoFactory)_fileSystem.DirectoryInfo;
-    
-    private SmbFileInfoFactory FileInfoFactory => (SmbFileInfoFactory)_fileSystem.FileInfo;
+    private SmbDirectory SmbDirectory => (SmbDirectory)smbFileSystem.Directory;
 
-    private readonly IFileSystem _fileSystem = fileSystem;
+    private SmbFile SmbFile => (SmbFile)smbFileSystem.File;
 
-    internal SmbDirectoryInfo(DirectoryInfo directoryInfo, IFileSystem fileSystem, ISmbCredentialProvider credentialProvider) : this(directoryInfo.FullName, fileSystem, credentialProvider)
+    private SmbDirectoryInfoFactory DirectoryInfoFactory => (SmbDirectoryInfoFactory)smbFileSystem.DirectoryInfo;
+
+    private SmbFileInfoFactory FileInfoFactory => (SmbFileInfoFactory)smbFileSystem.FileInfo;
+
+    internal SmbDirectoryInfo(SmbFileSystem smbFileSystem, DirectoryInfo directoryInfo) : this(smbFileSystem, directoryInfo.FullName)
     {
         CreationTime = directoryInfo.CreationTime;
         _creationTimeUtc = directoryInfo.CreationTimeUtc;
-        _fileSystem = fileSystem;
         LastAccessTime = directoryInfo.LastAccessTime;
         _lastAccessTimeUtc = directoryInfo.LastAccessTimeUtc;
         LastWriteTime = directoryInfo.LastWriteTime;
         _lastWriteTimeUtc = directoryInfo.LastWriteTimeUtc;
         _parent = directoryInfo.Parent == null ? null : DirectoryInfoFactory.New(directoryInfo.Parent.FullName);
-        _root = new SmbDirectoryInfo(directoryInfo.Root.FullName, fileSystem, credentialProvider);
+        _root = new SmbDirectoryInfo(smbFileSystem, directoryInfo.Root.FullName);
         Exists = directoryInfo.Exists;
         Extension = directoryInfo.Extension;
         Name = directoryInfo.Name;
     }
 
-    internal SmbDirectoryInfo(string fileName, FileInformation fileInfo, IFileSystem fileSystem, ISmbCredentialProvider credentialProvider, ISmbCredential credential): this(fileName, fileSystem, credentialProvider)
+    internal SmbDirectoryInfo(SmbFileSystem smbFileSystem, string fileName, FileInformation fileInfo, ISmbCredential credential): this(smbFileSystem, fileName)
     {
         var fileDirectoryInformation = (FileBasicInformation)fileInfo;
         if (fileDirectoryInformation.CreationTime.Time.HasValue)
@@ -55,31 +52,30 @@ public class SmbDirectoryInfo(string fileName, IFileSystem fileSystem, ISmbCrede
         }
 
         _parent = SmbDirectory.GetParent(fileName, credential);
-        _fileSystem = fileSystem;
-        string pathRoot = _fileSystem.Path.GetPathRoot(fileName) ?? string.Empty;
+        string pathRoot = smbFileSystem.Path.GetPathRoot(fileName) ?? string.Empty;
         _root = pathRoot == fileName ? this : DirectoryInfoFactory.New(pathRoot, credential);
-        Exists = _fileSystem.Directory.Exists(FullName);
+        Exists = smbFileSystem.Directory.Exists(FullName);
         Extension = string.Empty;
         Name = fileName.GetLastPathSegment().RemoveLeadingAndTrailingSeparators();
     }
 
     private IDirectoryInfo? _parent;
     public override IDirectoryInfo? Parent => _parent;
-    
+
     private IDirectoryInfo _root;
     public override IDirectoryInfo Root => _root;
 
     private System.IO.FileAttributes _attributes;
-    public override System.IO.FileAttributes Attributes 
-    { 
-        get => _attributes; 
-        set => _attributes = value; 
+    public override System.IO.FileAttributes Attributes
+    {
+        get => _attributes;
+        set => _attributes = value;
     }
 
     public sealed override DateTime CreationTime { get; set; }
 
     private DateTime _creationTimeUtc;
-    public override DateTime CreationTimeUtc 
+    public override DateTime CreationTimeUtc
     {
         get => _creationTimeUtc;
 
@@ -90,13 +86,13 @@ public class SmbDirectoryInfo(string fileName, IFileSystem fileSystem, ISmbCrede
     public override bool Exists { get; }
 
     public override string Extension { get; }
-    
+
     public sealed override string FullName => fileName;
 
     public sealed override DateTime LastAccessTime { get; set; }
     private DateTime _lastAccessTimeUtc;
-    public override DateTime LastAccessTimeUtc 
-    { 
+    public override DateTime LastAccessTimeUtc
+    {
         get => _lastAccessTimeUtc;
 
         // Not kept in sync with LastAccessTime. Do we care?
@@ -106,7 +102,7 @@ public class SmbDirectoryInfo(string fileName, IFileSystem fileSystem, ISmbCrede
     public sealed override DateTime LastWriteTime { get; set; }
     private DateTime _lastWriteTimeUtc;
     public override DateTime LastWriteTimeUtc
-    { 
+    {
         get => _lastWriteTimeUtc;
 
         // Not kept in sync with LastWriteTime. Do we care?
@@ -117,7 +113,7 @@ public class SmbDirectoryInfo(string fileName, IFileSystem fileSystem, ISmbCrede
 
     public override void Create() => SmbDirectory.CreateDirectory(FullName);
 
-    public override IDirectoryInfo CreateSubdirectory(string path) => SmbDirectory.CreateDirectory(_fileSystem.Path.Combine(FullName, path));
+    public override IDirectoryInfo CreateSubdirectory(string path) => SmbDirectory.CreateDirectory(smbFileSystem.Path.Combine(FullName, path));
 
     public override void Delete(bool recursive) => SmbDirectory.Delete(FullName, recursive);
 
@@ -133,7 +129,7 @@ public class SmbDirectoryInfo(string fileName, IFileSystem fileSystem, ISmbCrede
             return base.EnumerateDirectories(searchPattern, searchOption);
 
         var paths = SmbDirectory.EnumerateDirectories(FullName, searchPattern, searchOption);
-        var rootCredential = credentialProvider.GetSmbCredential(FullName);
+        var rootCredential = smbFileSystem.CredentialProvider.GetSmbCredential(FullName);
         return paths.Select(path => DirectoryInfoFactory.New(path, rootCredential)).ToList();
     }
 
@@ -147,7 +143,7 @@ public class SmbDirectoryInfo(string fileName, IFileSystem fileSystem, ISmbCrede
             return base.EnumerateFiles(searchPattern, searchOption);
 
         var paths = SmbDirectory.EnumerateFiles(FullName, searchPattern, searchOption);
-        var rootCredential = credentialProvider.GetSmbCredential(FullName);
+        var rootCredential = smbFileSystem.CredentialProvider.GetSmbCredential(FullName);
         return paths.Select(path => FileInfoFactory.New(path, rootCredential)).ToList();
     }
 
@@ -161,7 +157,7 @@ public class SmbDirectoryInfo(string fileName, IFileSystem fileSystem, ISmbCrede
             return base.EnumerateFileSystemInfos(searchPattern, searchOption);
 
         var paths = SmbDirectory.EnumerateFileSystemEntries(FullName, searchPattern, searchOption);
-        var rootCredential = credentialProvider.GetSmbCredential(FullName);
+        var rootCredential = smbFileSystem.CredentialProvider.GetSmbCredential(FullName);
         var fileSystemInfos = new List<IFileSystemInfo>();
 
         foreach (string? path in paths)

@@ -9,9 +9,9 @@ class Program
 public static void Main(string[] args)
 {
     var app = CreateHostBuilder(args).Build();
-    
+
     var fileSystem = app.Services.GetRequiredService<IFileSystem>();
-    
+
     // Do stuff with fileSystem before app.Run for misc. testing outside DI...
 
     app.Run();
