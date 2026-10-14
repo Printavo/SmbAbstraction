@@ -11,6 +11,9 @@ public class SmbFsStream(ISMBFileStore fileStore, object fileHandle, SmbConnecti
 
 public class SmbStream: Stream
 {
+    /// <summary>SMB2 payload size covered by one credit.</summary>
+    private const int c_bytesPerCredit = 65536;
+
     private readonly SmbFileSystemOptions _smbFileSystemOptions;
 
     private readonly ISMBFileStore _fileStore;
@@ -25,14 +28,23 @@ public class SmbStream: Stream
 
     public override bool CanWrite => true;
 
-    private readonly int _maxReadSize;
+    private int MaxBufferSize => Math.Min(MaxReadChunkSize, MaxWriteChunkSize);
 
-    private readonly int _maxWriteSize;
+    private int ClampToOptions(int negotiatedSize)
+    {
+        // Treating a zero on either side as "no limit" so a misconfigured option can't stall reads and writes.
+        int optionsSize = (int)Math.Min(_smbFileSystemOptions.MaxBufferSize, int.MaxValue);
+        int size = negotiatedSize > 0 && optionsSize > 0 ? Math.Min(negotiatedSize, optionsSize) : Math.Max(negotiatedSize, optionsSize);
+        return size > 0 ? size : c_bytesPerCredit;
+    }
 
-    /// <remarks>
-    /// TODO: Should we get this value from _smbFileSystemOptions?
-    /// </remarks>
-    private int MaxBufferSize => Math.Min(_maxReadSize, _maxWriteSize);
+    /// <summary>
+    /// The largest single SMB2 READ request this stream will send. SMBLibrary charges one credit per 64 KiB of payload and throws "Not enough credits" when a request costs more credits than the server has granted (it never asks for more than 16), so requests are capped at <see cref="SmbFileSystemOptions.MaxBufferSize"/> as well as the negotiated size.
+    /// </summary>
+    private int MaxReadChunkSize => ClampToOptions(field);
+
+    /// <inheritdoc cref="MaxReadChunkSize" />
+    private int MaxWriteChunkSize => ClampToOptions(field);
 
     private long _length;
 
@@ -50,8 +62,8 @@ public class SmbStream: Stream
         _fileStore = fileStore;
         _fileHandle = fileHandle;
         _connection = connection;
-        _maxReadSize = Convert.ToInt32(_connection.SmbClient.MaxReadSize);
-        _maxWriteSize = Convert.ToInt32(_connection.SmbClient.MaxWriteSize);
+        MaxReadChunkSize = Convert.ToInt32(_connection.SmbClient.MaxReadSize);
+        MaxWriteChunkSize = Convert.ToInt32(_connection.SmbClient.MaxWriteSize);
         _length = fileLength;
     }
 
@@ -66,7 +78,7 @@ public class SmbStream: Stream
 
         do
         {
-            ntStatus = _fileStore.ReadFile(out byte[] data, _fileHandle, _position, count);
+            ntStatus = _fileStore.ReadFile(out byte[] data, _fileHandle, _position, Math.Min(count, MaxReadChunkSize));
 
             switch (ntStatus)
             {
@@ -171,11 +183,9 @@ public class SmbStream: Stream
             case SeekOrigin.Begin:
                 return _position = offset;
             case SeekOrigin.End:
-                var status = _fileStore.GetFileInformation(out var result, _fileHandle, FileInformationClass.FileStreamInformation);
+                var status = _fileStore.GetFileInformation(out var result, _fileHandle, FileInformationClass.FileStandardInformation);
                 status.AssertSuccess();
-                var fileStreamInformation = (FileStreamInformation)result;
-                _position += fileStreamInformation.Entries[0].StreamSize;
-                return _position;
+                return _position = ((FileStandardInformation)result).EndOfFile + offset;
             case SeekOrigin.Current:
             default:
                 break;
@@ -189,25 +199,32 @@ public class SmbStream: Stream
 
     public override void Write(byte[] buffer, int offset, int count)
     {
-        byte[] data = new byte[count];
+        // Large buffers (e.g. File.WriteAllBytes) are split into requests the server can accept; see MaxWriteChunkSize.
+        while (count > 0)
+        {
+            byte[] data = new byte[Math.Min(count, MaxWriteChunkSize)];
+            Buffer.BlockCopy(buffer, offset, data, 0, data.Length);
 
-        for (int i = offset, i2 = 0; i < count; i++, i2++)
-            data[i2] = buffer[i];
+            NTStatus status;
+            int bytesWritten;
 
-        NTStatus status;
-        int bytesWritten;
+            var stopwatch = new Stopwatch();
 
-        var stopwatch = new Stopwatch();
+            stopwatch.Start();
+            do {
+                status = _fileStore.WriteFile(out bytesWritten, _fileHandle, _position, data);
+            } while (status == NTStatus.STATUS_PENDING && stopwatch.Elapsed.TotalSeconds <= _smbFileSystemOptions.ClientSessionTimeout);
+            stopwatch.Stop();
 
-        stopwatch.Start();
-        do {
-            status = _fileStore.WriteFile(out bytesWritten, _fileHandle, _position, data);
-        } while (status == NTStatus.STATUS_PENDING && stopwatch.Elapsed.TotalSeconds <= _smbFileSystemOptions.ClientSessionTimeout);
-        stopwatch.Stop();
+            status.AssertSuccess();
 
-        status.AssertSuccess();
+            if (bytesWritten <= 0)
+                throw new SmbException($"Unable to write file; the server accepted 0 of {data.Length} bytes.");
 
-        _position += bytesWritten;
+            _position += bytesWritten;
+            offset += bytesWritten;
+            count -= bytesWritten;
+        }
     }
 
     protected override void Dispose(bool disposing)

@@ -40,12 +40,12 @@ public class SmbDirectory(
         if (Exists(path))
             return DirectoryInfoFactory.New(path);
 
-        ISMBFileStore fileStore = null;
-        object handle = null;
+        ISMBFileStore? fileStore = null;
+        object? handle = null;
 
         try
         {
-            string shareName = path.ShareName();
+            string? shareName = path.ShareName();
             string relativePath = path.ShareRelativePath();
             logger?.LogTrace("Trying to CreateDirectory {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
             using var connection = SmbConnection.CreateSmbConnection(smbFileSystem.ClientFactory, ipAddress, Transport, credential, smbFileSystem.Options);
@@ -112,12 +112,12 @@ public class SmbDirectory(
         if (EnumerateFileSystemEntries(path).Any())
             throw new SmbException($"Failed to Delete {path}", new IOException("Cannot delete directory. Directory is not empty."));
 
-        ISMBFileStore fileStore = null;
-        object handle = null;
+        ISMBFileStore? fileStore = null;
+        object? handle = null;
 
         try
         {
-            string shareName = path.ShareName();
+            string? shareName = path.ShareName();
             string relativePath = path.ShareRelativePath();
             logger?.LogTrace("Trying to Delete {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
             using var connection = SmbConnection.CreateSmbConnection(smbFileSystem.ClientFactory, ipAddress, Transport, credential, smbFileSystem.Options);
@@ -172,8 +172,8 @@ public class SmbDirectory(
 
             credential ??= smbFileSystem.CredentialProvider.GetSmbCredential(path) ?? throw new SmbException($"Failed to delete {path}", new InvalidCredentialException($"Unable to find credential in SMBCredentialProvider for path: {path}"));
 
-            ISMBFileStore fileStore = null;
-            object handle = null;
+            ISMBFileStore? fileStore = null;
+            object? handle = null;
 
             try
             {
@@ -318,12 +318,12 @@ public class SmbDirectory(
         if (credential == null)
             throw new SmbException($"Failed to EnumerateFiles for {path}", new InvalidCredentialException($"Unable to find credential in SMBCredentialProvider for path: {path}"));
 
-        ISMBFileStore fileStore = null;
-        object handle = null;
+        ISMBFileStore? fileStore = null;
+        object? handle = null;
 
         try
         {
-            string shareName = path.ShareName();
+            string? shareName = path.ShareName();
             string relativePath = path.ShareRelativePath();
             logger?.LogTrace("Trying to EnumerateFiles for {{RelativePath: {relativePath}}} for {{ShareName: {shareName}}}", relativePath, shareName);
             using var connection = SmbConnection.CreateSmbConnection(smbFileSystem.ClientFactory, ipAddress, Transport, credential, smbFileSystem.Options);
@@ -388,8 +388,8 @@ public class SmbDirectory(
         if (credential == null)
             throw new SmbException($"Failed to EnumerateFileSystemEntries for {path}", new InvalidCredentialException($"Unable to find credential in SMBCredentialProvider for path: {path}"));
 
-        ISMBFileStore fileStore = null;
-        object handle = null;
+        ISMBFileStore? fileStore = null;
+        object? handle = null;
 
         try
         {
@@ -433,7 +433,7 @@ public class SmbDirectory(
         }
     }
 
-    public override bool Exists(string path)
+    public override bool Exists(string? path)
     {
         if (!path.IsSharePath())
             return base.Exists(path);
@@ -447,15 +447,12 @@ public class SmbDirectory(
 
         try
         {
+            // A bare \\host has no share to look in, like System.IO's Directory.Exists(@"\\host").
+            if (path.ShareName() is null)
+                return false;
+
             if (!path.TryResolveHostnameFromPath(out var ipAddress))
                 throw new SmbException($"Failed to determine if {path} exists", new ArgumentException($"Unable to resolve \"{path.Hostname()}\""));
-
-            string sharePath = path.SharePath();
-
-            // SMBLibrary (or maybe some SMB servers?) don't seem to like forward slashes in the path, so we're replacing them with backslashes.
-            string shareRelativePath = path[sharePath.Length..].Replace("/", "\\");
-
-            logger?.LogTrace("Trying to determine if {{shareRelativePath: {shareRelativePath}}} exists as a dir for {{sharePath: {sharePath}}}", shareRelativePath, sharePath);
 
             using var smbConnection = SmbConnection.CreateSmbConnection(
                 smbFileSystem.ClientFactory,
@@ -466,7 +463,9 @@ public class SmbDirectory(
             );
             fileStore = smbConnection.SmbClient.TreeConnect(path.ShareName(), out var ntStatus);
             ntStatus.AssertSuccess();
-            ntStatus = fileStore.CreateFile(out dirLookupHandle, out _, shareRelativePath, AccessMask.GENERIC_READ, 0, ShareAccess.Read, CreateDisposition.FILE_OPEN, CreateOptions.FILE_DIRECTORY_FILE, null);
+
+            // path.ShareRelativePath is empty for the share root (\\host\share), which SMBLibrary opens as the root directory.
+            ntStatus = fileStore.CreateFile(out dirLookupHandle, out _, path.ShareRelativePath(), AccessMask.GENERIC_READ, 0, ShareAccess.Read, CreateDisposition.FILE_OPEN, CreateOptions.FILE_DIRECTORY_FILE, null);
 
             if (ntStatus.IsAbsent())
                 return false;

@@ -198,14 +198,18 @@ public partial class SmbFile(
 
         try
         {
+            // A bare \\host or \\host\share can never be a file.
+
+            if (path.ShareName() is null)
+                return false;
+
+            string shareRelativePath = path.ShareRelativePath();
+
+            if (shareRelativePath.Length == 0)
+                return false;
+
             if (!path.TryResolveHostnameFromPath(out var ipAddress))
                 throw new SmbException($"Failed to determine if {path} exists", new ArgumentException($"Unable to resolve \"{path.Hostname()}\""));
-
-            string sharePath = path.SharePath();
-
-            // SMBLibrary (or maybe some SMB servers?) don't seem to like forward slashes in the path, so we're replacing them with backslashes.
-            string shareRelativePath = path[sharePath.Length..].Replace("/", "\\");
-            logger?.LogTrace("Trying to determine if {{shareRelativePath: {shareRelativePath}}} exists as a file for {{sharePath: {sharePath}}}", shareRelativePath, sharePath);
 
             using var smbConnection = SmbConnection.CreateSmbConnection(
                 smbFileSystem.ClientFactory,

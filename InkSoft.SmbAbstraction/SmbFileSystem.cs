@@ -30,6 +30,9 @@ public class SmbFileSystem: FileSystemBase
         Directory = new SmbDirectory(this, loggerFactory?.CreateLogger<SmbDirectory>());
         FileStream = new SmbFileStreamFactory(this);
         FileSystemWatcher = new SmbFileSystemWatcherFactory(this);
+        #if NET
+        RandomAccess = new SmbRandomAccess(this);
+        #endif
     }
 
     public ISmbClientFactory ClientFactory { get; set; }
@@ -62,6 +65,11 @@ public class SmbFileSystem: FileSystemBase
 
     /// <inheritdoc cref="SmbPath"/>
     public override IPath Path { get; }
+
+    #if NET
+    /// <inheritdoc cref="SmbRandomAccess"/>
+    public override IRandomAccess RandomAccess { get; }
+    #endif
 
     /// <inheritdoc cref="SmbFile"/>
     public override IFile File { get; }

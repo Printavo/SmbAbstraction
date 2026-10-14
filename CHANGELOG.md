@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project tries to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] 2026-10-14
+
+### Fixed
+- `File.Exists()` and `Directory.Exists()` no longer log an `ArgumentOutOfRangeException` for share root paths like `\\server\share` (or `\\server`). `File.Exists()` now returns false for them without connecting, and `Directory.Exists()` now actually checks the share root instead of always returning false.
+- Fixed sporadic "Not enough credits" errors when writing large files (e.g. `File.WriteAllBytes()` of a big image). `SmbStream.Write()` used to send the whole buffer as one SMB request, which needs more SMB2 credits than SMBLibrary ever holds for anything over 1 MiB. Writes are now split into requests of at most `SmbFileSystemOptions.MaxBufferSize` (default 64 KiB) or the server's negotiated maximum, whichever is smaller. Reads are capped the same way.
+- `SmbStream.Write(buffer, offset, count)` copied the wrong bytes whenever `offset` was greater than 0, so chunked writes after the first chunk came out as zeros. Writing in chunks with an offset now produces the correct bytes.
+- `SmbStream.Seek(offset, SeekOrigin.End)` added the file size to the current position and ignored `offset`. It now moves to the end of the file plus `offset`.
+
+### Added
+- `SmbFileSystem.RandomAccess` (.NET 8+ targets) via the new `SmbRandomAccess` class. `IRandomAccess` only works on OS-level `SafeFileHandle`s, so every call is delegated to `SmbFileSystem.NonSmbFileSystem`; SMB paths aren't supported. Use `FileStream` with seeking for random access to files on SMB shares.
+
+### Changed
+- NuGet package dependency updates: SMBLibrary 1.5.8.1, TestableIO.System.IO.Abstractions.Wrappers 22.3.0, Backport.System.Threading.Lock 3.1.8, PolySharp 1.16.0, Microsoft.SourceLink.GitHub 10.0.402
+- Documented `SmbFileSystemOptions.MaxBufferSize`, which now also limits the size of each SMB read and write request
+
 ## [3.0.0] 2025-11-21
 
 ### Fixed

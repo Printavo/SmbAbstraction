@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageId>InkSoft.SmbAbstraction</PackageId>
-    <Version>3.0.0</Version>
+    <Version>3.1.0</Version>
     <TargetFrameworks>net10.0;net9.0;net8.0;netstandard2.1;netstandard2.0</TargetFrameworks>
     <NeutralLanguage>en-US</NeutralLanguage>
     <Description>This project is a fork of https://github.com/jordanlytle/SmbAbstraction with a few key differences: 1) It uses the original SMBLibrary as opposed to SMBLibraryLite, 2) It conforms to newer versions of https://github.com/TestableIO/System.IO.Abstractions interfaces, and 3) it also targets .Net Standard 2.0. This library implements the System.IO.Abstractions interfaces for interacting with the filesystem and adds support for interacting with UNC or SMB paths from non-Windows (and Windows) clients outside an Active Directory domain.</Description>
@@ -11,7 +11,7 @@
     <PackageIcon>PackageIcon.png</PackageIcon>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <Title>SMBLibrary to IFileSystem compatibility shim</Title>
-    <PackageReleaseNotes>FileStream.New fixes, potential fix for Dispose() thread exhaustion and locking issue, NuGet dependency updates, constructor signature changes, .Net 10 target</PackageReleaseNotes>
+    <PackageReleaseNotes>Fixed "Not enough credits" errors when writing large files, SmbStream.Write() offset and Seek(SeekOrigin.End) fixes, File/Directory.Exists() fixes for share root paths, added SmbFileSystem.RandomAccess, NuGet dependency updates</PackageReleaseNotes>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <Choose>
@@ -32,12 +32,12 @@
     </Otherwise>
   </Choose>
   <ItemGroup>
-    <PackageReference Include="SMBLibrary" Version="1.5.5.1" />
-    <PackageReference Include="TestableIO.System.IO.Abstractions.Wrappers" Version="22.0.16" />
+    <PackageReference Include="SMBLibrary" Version="1.5.8.1" />
+    <PackageReference Include="TestableIO.System.IO.Abstractions.Wrappers" Version="22.3.0" />
     <None Include="PackageIcon.png" Pack="true" PackagePath="" />
   </ItemGroup>
   <ItemGroup Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net9.0'))">
-    <PackageReference Include="Backport.System.Threading.Lock" Version="3.1.5">
+    <PackageReference Include="Backport.System.Threading.Lock" Version="3.1.8">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>analyzers</IncludeAssets>
     </PackageReference>
